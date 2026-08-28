@@ -21,24 +21,20 @@
 
         <h1>Профиль пользователя</h1>
 
-        <div class="profile-actions">
+        <a href="{% url 'chat' room_name='general' %}">
+            Вернуться в чат
+        </a>
 
-            <a href="{% url 'chat' room_name='general' %}">
-                Вернуться в чат
-            </a>
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
 
-            <form method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-
-                <button
-                    type="submit"
-                    class="logout-button"
-                >
-                    Выйти
-                </button>
-            </form>
-
-        </div>
+            <button
+                type="submit"
+                class="logout-button"
+            >
+                Выйти
+            </button>
+        </form>
 
     </div>
 
@@ -161,9 +157,9 @@
 
     </div>
 
-<script src="{% static 'users/js/profile.js' %}"></script>
+
 
 </div>
-
+<script src="{% static 'users/js/profile.js' %}"></script>
 </body>
 </html>
