@@ -99,7 +99,14 @@ function updateOnlineUsers(users) {
             "online-users-list"
         );
 
+    const count =
+        document.getElementById(
+            "online-users-count"
+        );
+
     container.innerHTML = "";
+
+    count.textContent = users.length;
 
 
     users.forEach(function (username) {
@@ -131,8 +138,8 @@ function addMessage(data) {
     const messageElement =
         document.createElement("div");
 
-
-    const currentUser = chatConfig.username;
+    const currentUser =
+        chatConfig.username;
 
 
     if (data.username === currentUser) {
@@ -150,6 +157,10 @@ function addMessage(data) {
     }
 
 
+    // =========================
+    // Message content
+    // =========================
+
     const content =
         document.createElement("div");
 
@@ -158,14 +169,64 @@ function addMessage(data) {
     );
 
 
+    // =========================
+    // Username + avatar
+    // =========================
+
     const username =
         document.createElement("div");
 
-    username.classList.add("username");
+    username.classList.add(
+        "username"
+    );
 
-    username.textContent =
+
+    const avatar =
+        document.createElement("span");
+
+    avatar.classList.add(
+        "message-avatar"
+    );
+
+
+    if (data.avatar) {
+
+        const avatarImage =
+            document.createElement("img");
+
+        avatarImage.src =
+            data.avatar;
+
+        avatarImage.alt =
+            `Аватар ${data.username}`;
+
+        avatar.appendChild(
+            avatarImage
+        );
+
+    } else {
+
+        avatar.textContent =
+            data.username
+                .charAt(0)
+                .toUpperCase();
+    }
+
+
+    const usernameText =
+        document.createElement("span");
+
+    usernameText.textContent =
         data.username;
 
+
+    username.appendChild(avatar);
+    username.appendChild(usernameText);
+
+
+    // =========================
+    // Message text
+    // =========================
 
     const text =
         document.createElement("div");
@@ -175,6 +236,10 @@ function addMessage(data) {
     text.textContent =
         data.message;
 
+
+    // =========================
+    // Time
+    // =========================
 
     const time =
         document.createElement("div");
@@ -192,6 +257,10 @@ function addMessage(data) {
             minute: "2-digit"
         });
 
+
+    // =========================
+    // Build message
+    // =========================
 
     content.appendChild(username);
     content.appendChild(text);

@@ -182,9 +182,14 @@
 <div class="chat-container">
 
     <div class="chat-header">
-        <div>
-            <h1>Комната: {{ room_name }}</h1>
-            <p>Пользователь: {{ request.user.username }}</p>
+
+        <div class="chat-title">
+            <h1>💬 {{ room_name }}</h1>
+
+            <p>
+                Вы вошли как
+                <strong>{{ request.user.username }}</strong>
+            </p>
         </div>
 
         {% if user.is_authenticated %}
@@ -197,18 +202,23 @@
                     Профиль
                 </a>
 
-                <button id="logout-button" action="{% url 'logout' %}">
+                <button
+                    id="logout-button"
+                    type="button"
+                >
                     Выйти
                 </button>
 
             </div>
         {% endif %}
+
     </div>
 
     <div class="online-users">
 
         <div class="online-title">
-            Пользователи онлайн
+            <span>Пользователи онлайн:</span>
+            <span id="online-users-count">0</span>
         </div>
 
         <div id="online-users-list"></div>
