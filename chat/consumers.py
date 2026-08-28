@@ -128,6 +128,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 "type": "chat_message",
                 "username": user.username,
+                "avatar": user.avatar.url if user.avatar else None,
                 "message": message.text,
                 "created_at": message.created_at.isoformat(),
             },
@@ -139,6 +140,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 {
                     "type": "message",
                     "username": event["username"],
+                    "avatar": event["avatar"],
                     "message": event["message"],
                     "created_at": event["created_at"],
                 }
@@ -200,6 +202,11 @@ class ChatConsumer(AsyncWebsocketConsumer):
         return [
             {
                 "username": message.user.username,
+                "avatar": (
+                    message.user.avatar.url
+                    if message.user.avatar
+                    else None
+                ),
                 "message": message.text,
                 "created_at": message.created_at.isoformat(),
             }
