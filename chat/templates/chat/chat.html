@@ -1,262 +1,140 @@
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Chat — {{ room_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат</title>
     <link rel="stylesheet" href="{% static 'chat/css/chat.css' %}">
 </head>
-
 <body>
 
-<div id="login-modal" class="modal {% if user.is_authenticated %} hidden{% endif %}">
-    <div class="modal-content">
-
-    <!-- LOGIN -->
-
-        <div id="login-container">
-
+    <!-- Модальное окно входа -->
+    <div id="login-container" class="modal {% if user.is_authenticated %}hidden{% endif %}">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Вход в чат</h2>
-                <p>Войдите, чтобы продолжить</p>
+                <p>Войдите, чтобы продолжить общение</p>
             </div>
-
             <form id="login-form">
-
                 {% csrf_token %}
-
+                <div id="login-error" class="form-error"></div>
                 <div class="form-group">
                     <label for="login-username">Логин</label>
-
-                    <input
-                        id="login-username"
-                        type="text"
-                        placeholder="Введите логин"
-                        autocomplete="username"
-                        required
-                    >
+                    <input type="text" id="login-username" name="username" required autocomplete="username">
                 </div>
-
                 <div class="form-group">
                     <label for="login-password">Пароль</label>
-
-                    <input
-                        id="login-password"
-                        type="password"
-                        placeholder="Введите пароль"
-                        autocomplete="current-password"
-                        required
-                    >
+                    <input type="password" id="login-password" name="password" required autocomplete="current-password">
                 </div>
-
-                <div id="login-error" class="form-error"></div>
-
-                <button
-                    type="submit"
-                    class="primary-button"
-                >
-                    Войти
-                </button>
-
+                <button type="submit" class="primary-button">Войти</button>
             </form>
-
             <div class="modal-footer">
                 Нет аккаунта?
-
-                <button
-                    type="button"
-                    id="show-register"
-                    class="link-button"
-                >
-                    Зарегистрироваться
-                </button>
+                <button type="button" id="show-register" class="link-button">Зарегистрироваться</button>
             </div>
-
         </div>
+    </div>
 
-
-        <!-- REGISTER -->
-
-        <div
-            id="register-container"
-            class="hidden"
-        >
-
+    <!-- Модальное окно регистрации -->
+    <div id="register-container" class="modal hidden">
+        <div class="modal-content">
             <div class="modal-header">
                 <h2>Создание аккаунта</h2>
                 <p>Заполните данные для регистрации</p>
             </div>
-
             <form id="register-form">
-
                 {% csrf_token %}
-
+                <div id="register-error" class="form-error"></div>
                 <div class="form-group">
-                    <label for="register-username">
-                        Логин
-                    </label>
-
-                    <input
-                        id="register-username"
-                        type="text"
-                        placeholder="Придумайте логин"
-                        autocomplete="username"
-                        required
-                    >
+                    <label for="register-username">Логин</label>
+                    <input type="text" id="register-username" name="username" required>
                 </div>
-
                 <div class="form-group">
-                    <label for="register-email">
-                        Email
-                    </label>
-
-                    <input
-                        id="register-email"
-                        type="email"
-                        placeholder="Введите email"
-                        autocomplete="email"
-                        required
-                    >
+                    <label for="register-email">Email</label>
+                    <input type="email" id="register-email" name="email" required>
                 </div>
-
                 <div class="form-group">
-                    <label for="register-password">
-                        Пароль
-                    </label>
-
-                    <input
-                        id="register-password"
-                        type="password"
-                        placeholder="Придумайте пароль"
-                        autocomplete="new-password"
-                        required
-                    >
+                    <label for="register-password">Пароль</label>
+                    <input type="password" id="register-password" name="password" required>
                 </div>
-
                 <div class="form-group">
-                    <label for="register-password-confirm">
-                        Повторите пароль
-                    </label>
-
-                    <input
-                        id="register-password-confirm"
-                        type="password"
-                        placeholder="Повторите пароль"
-                        autocomplete="new-password"
-                        required
-                    >
+                    <label for="register-password-confirm">Повторите пароль</label>
+                    <input type="password" id="register-password-confirm" name="password_confirm" required>
                 </div>
-
-                <div
-                    id="register-error"
-                    class="form-error"
-                ></div>
-
-                <button
-                    type="submit"
-                    class="primary-button"
-                >
-                    Создать аккаунт
-                </button>
-
+                <button type="submit" class="primary-button">Создать аккаунт</button>
             </form>
-
             <div class="modal-footer">
                 Уже есть аккаунт?
-
-                <button
-                    type="button"
-                    id="show-login"
-                    class="link-button"
-                >
-                    Войти
-                </button>
+                <button type="button" id="show-login" class="link-button">Войти</button>
             </div>
-
         </div>
-
     </div>
-</div>
 
-<div class="chat-container">
-
-    <div class="chat-header">
-
-        <div class="chat-title">
-            <h1>💬 {{ room_name }}</h1>
-
-            <p>
-                Вы вошли как
-                <strong>{{ request.user.username }}</strong>
-            </p>
-        </div>
-
-        {% if user.is_authenticated %}
-            <div class="user-actions">
-
-                <a
-                    href="{% url 'profile' %}"
-                    class="profile-link"
-                >
-                    Профиль
-                </a>
-
-                <button
-                    id="logout-button"
-                    type="button"
-                >
-                    Выйти
-                </button>
-
+    <!-- Основной интерфейс чата -->
+    <div class="chat-layout {% if not user.is_authenticated %}hidden{% endif %}">
+        <!-- Боковая панель -->
+        <aside class="rooms-sidebar">
+            <div class="rooms-header">
+                <h2>💬 Чаты</h2>
             </div>
-        {% endif %}
+            <div class="rooms-list">
+                {% for chat_room in rooms %}
+                    <a href="{% url 'chat' room_name=chat_room.name %}" class="room-link {% if chat_room.name == room_name %}active{% endif %}">
+                        <span class="room-icon">{% if chat_room.is_private %}🔒{% else %}💬{% endif %}</span>
+                        <span class="room-name">{{ chat_room.name }}</span>
+                    </a>
+                {% empty %}
+                    <div class="rooms-empty">Нет доступных чатов</div>
+                {% endfor %}
+            </div>
+            <a href="#" class="create-room-button">+ Создать чат</a>
+        </aside>
 
+        <!-- Основная область чата -->
+        <main class="chat-container">
+            <header class="chat-header">
+                <div class="online-users">
+                    <div class="online-header">
+                        <h3 class="online-title">Пользователи онлайн: <span id="online-users-count">0</span></h3>
+
+                        {% if user.is_authenticated %}
+                        <div class="user-menu">
+                            <button id="user-menu-button" class="user-menu-button" aria-label="Меню пользователя">☰</button>
+                            <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
+                                <a href="{% url 'profile' %}" class="user-menu-item">👤 Профиль</a>
+                                <form id="logout-form">
+                                    {% csrf_token %}
+                                    <button type="button" id="logout-button" class="user-menu-item logout-item">🚪 Выйти</button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                    <div id="online-users-list"></div>
+                </div>
+            </header>
+
+            <div id="chat-log" class="chat-log"></div>
+
+            <div class="chat-input">
+                <input type="text" id="chat-message-input" placeholder="Введите сообщение..." autocomplete="off">
+                <button id="chat-message-submit">Отправить</button>
+            </div>
+        </main>
     </div>
 
-    <div class="online-users">
-
-        <div class="online-title">
-            <span>Пользователи онлайн:</span>
-            <span id="online-users-count">0</span>
-        </div>
-
-        <div id="online-users-list"></div>
-
-    </div>
-
-    <div id="chat-log" class="chat-log"></div>
-
-    <div id="error-message" class="error"></div>
-
-    <div class="chat-input">
-        <input
-                id="chat-message-input"
-                type="text"
-                placeholder="Введите сообщение..."
-                autocomplete="off"
-        >
-
-        <button id="chat-message-submit">
-            Отправить
-        </button>
-    </div>
-
-</div>
-
-<script>
-    const chatConfig = {
-        roomName: "{{ room_name }}",
-        username: "{{ request.user.username }}",
-        isAuthenticated: {{ user.is_authenticated|yesno:"true,false" }},
-
-        logoutUrl: "{% url 'logout' %}",
-        loginUrl: "{% url 'login' %}",
-        registerUrl: "{% url 'register' %}",
-    };
-</script>
-
-<script src="{% static 'chat/js/chat.js' %}"></script>
-
+    <script>
+        // Конфигурация из Django
+        const chatConfig = {
+            roomName: "{{ room_name|default:'general' }}",
+            isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
+            username: "{{ user.username|default:'' }}",
+            loginUrl: "{% url 'login' %}",
+            registerUrl: "{% url 'register' %}",
+            logoutUrl: "{% url 'logout' %}"
+        };
+    </script>
+    <script src="{% static 'chat/js/chat.js' %}"></script>
 </body>
 </html>
