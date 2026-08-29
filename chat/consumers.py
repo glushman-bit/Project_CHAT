@@ -3,7 +3,7 @@ import json
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncWebsocketConsumer
 
-from .models import Message
+from .models import Message, ChatRoom
 from .validators import validate_message
 
 
@@ -17,7 +17,18 @@ class ChatConsumer(AsyncWebsocketConsumer):
             return
 
         self.room_name = self.scope["url_route"]["kwargs"]["room_name"]
-        self.room_group_name = f"chat_{self.room_name}"
+
+        self.room = await self.get_room(self.room_name)
+
+        if self.room is None:
+            await self.close()
+            return
+
+        if not await self.has_room_access(self.room):
+            await self.close()
+            return
+
+        self.room_group_name = f"chat_{self.room.id}"
 
         await self.channel_layer.group_add(
             self.room_group_name,
@@ -119,7 +130,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         message = await self.create_message(
             user.id,
-            self.room_name,
+            self.room.id,
             message_text,
         )
 
@@ -148,7 +159,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     async def send_message_history(self):
-        messages = await self.get_messages(self.room_name)
+        messages = await self.get_messages(self.room.id)
 
         await self.send(
             text_data=json.dumps(
@@ -184,18 +195,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
         )
 
     @database_sync_to_async
-    def create_message(self, user_id, room_name, text):
+    def create_message(self, user_id, room_id, text):
+        """Создание сообщения."""
+
         return Message.objects.create(
             user_id=user_id,
-            room_name=room_name,
+            room_id=room_id,
             text=text,
         )
 
     @database_sync_to_async
-    def get_messages(self, room_name):
+    def get_messages(self, room_id):
+        """Получение сообщений."""
         messages = (
             Message.objects
-            .filter(room_name=room_name)
+            .filter(room__id=room_id)
             .select_related("user")
         )
 
@@ -212,3 +226,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
             for message in messages
         ]
+
+    @database_sync_to_async
+    def get_room(self, room_name):
+        try:
+            return ChatRoom.objects.get(
+                name=room_name,
+            )
+        except ChatRoom.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def has_room_access(self, room):
+        user = self.scope["user"]
+
+        if room.owner_id == user.id:
+            return True
+
+        if not room.is_private:
+            return True
+
+        return room.members.filter(id=user.id).exists()
