@@ -33,6 +33,11 @@ class ChatRoom(models.Model):
     description = models.TextField(
         blank=True,
     )
+    avatar = models.ImageField(
+        upload_to="chat_rooms/",
+        blank=True,
+        null=True,
+    )
     is_private = models.BooleanField(
         default=False,
     )
