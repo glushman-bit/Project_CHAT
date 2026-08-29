@@ -1,7 +1,7 @@
 from django import forms
 
 from chat.models import ChatRoom
-from users.forms import User
+from users.models import User
 
 
 class ChatRoomForm(forms.ModelForm):
