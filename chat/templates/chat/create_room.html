@@ -1,0 +1,49 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Создание комнаты</title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'chat/css/chat.css' %}"
+    >
+</head>
+
+<body>
+
+<div class="create-room-page">
+    <div class="modal-content">
+
+        <div class="modal-header">
+            <h2>Создание комнаты</h2>
+            <p>Создайте новую комнату для общения</p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <button
+                type="submit"
+                class="primary-button"
+            >
+                Создать комнату
+            </button>
+        </form>
+
+        <div class="modal-footer">
+            <a href="{% url 'chat' room_name='general' %}">
+                Вернуться в чат
+            </a>
+        </div>
+
+    </div>
+</div>
+
+</body>
+</html>

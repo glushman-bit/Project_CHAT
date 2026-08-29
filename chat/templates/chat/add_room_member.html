@@ -1,0 +1,58 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Добавление участника</title>
+
+    <link
+        rel="stylesheet"
+        href="{% static 'chat/css/chat.css' %}"
+    >
+</head>
+
+<body>
+
+<div class="create-room-page">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+            <h2>Добавить участника</h2>
+
+            <p>
+                Комната: {{ room.name }}
+            </p>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+
+            {{ form.as_p }}
+
+            <button
+                type="submit"
+                class="primary-button"
+            >
+                Добавить
+            </button>
+        </form>
+
+        <div class="modal-footer">
+            <a href="{% url 'chat' room_name=room.name %}">
+                Вернуться в комнату
+            </a>
+        </div>
+
+    </div>
+
+</div>
+
+</body>
+</html>
