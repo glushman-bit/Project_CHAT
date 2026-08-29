@@ -1,22 +1,31 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.contrib.auth.views import redirect_to_login
 from django.core.exceptions import PermissionDenied
 from django.db import models
-from django.shortcuts import get_object_or_404, render, redirect
-from django.urls import reverse
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, render
 from django.views import View
-from django.views.generic import CreateView
 
 from chat.forms import ChatRoomForm, AddRoomMemberForm
 from chat.models import ChatRoom
+from users.models import User
 
 
 def chat_page(request, room_name):
 
     room = get_object_or_404(
-        ChatRoom,
+        ChatRoom.objects.prefetch_related("members"),
         name=room_name,
     )
+
+    available_users = User.objects.none()
+
+    if (
+            request.user.is_authenticated
+            and room.owner_id == request.user.id
+    ):
+        available_users = AddRoomMemberForm(
+            room=room,
+        ).fields["user"].queryset
 
     if request.user.is_authenticated:
         rooms = ChatRoom.objects.filter(
@@ -35,97 +44,98 @@ def chat_page(request, room_name):
             "room": room,
             "room_name": room.name,
             "rooms": rooms,
+            "room_members": room.members.all(),
+            "is_room_owner": (
+                request.user.is_authenticated
+                and room.owner_id == request.user.id
+            ),
+            "available_users": available_users,
         },
     )
 
 
-class CreateRoomView(LoginRequiredMixin, CreateView):
+class CreateRoomView(LoginRequiredMixin, View):
     """Создание комнаты."""
 
-    model = ChatRoom
-    form_class = ChatRoomForm
-    template_name = "chat/create_room.html"
+    def post(self, request):
+        """Создаёт комнату и возвращает JSON-ответ."""
 
-    def form_valid(self, form):
-        """Назначает текущего пользователя владельцем комнаты."""
-        form.instance.owner = self.request.user
+        form = ChatRoomForm(request.POST)
 
-        response = super().form_valid(form)
+        if not form.is_valid():
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": form.errors,
+                },
+                status=400,
+            )
 
-        self.object.members.add(self.request.user)
+        room = form.save(commit=False)
+        room.owner = request.user
+        room.save()
 
-        return response
+        room.members.add(request.user)
 
-    def get_success_url(self):
-        """Перенаправляет пользователя в созданную комнату."""
-        return reverse(
-            "chat",
-            kwargs={"room_name": self.object.name},
+        return JsonResponse(
+            {
+                "success": True,
+                "room": {
+                    "id": room.id,
+                    "name": room.name,
+                },
+            },
+            status=201,
         )
 
 
 class AddRoomMemberView(LoginRequiredMixin, View):
     """Добавление участника в комнату."""
 
-    template_name = "chat/add_room_member.html"
+    def post(self, request, room_id):
+        """Добавляет пользователя в комнату."""
 
-    def get_room(self, room_name):
-        return get_object_or_404(
+        room = get_object_or_404(
             ChatRoom,
-            name=room_name,
+            id=room_id,
         )
 
-    def dispatch(self, request, *args, **kwargs):
-        self.room = self.get_room(
-            kwargs["room_name"],
-        )
-
-        if self.room.owner_id != request.user.id:
+        if room.owner_id != request.user.id:
             raise PermissionDenied(
-                "Только владелец комнаты может управлять участниками."
+                "Только владелец комнаты может "
+                "добавлять участников."
             )
 
-        return super().dispatch(
-            request,
-            *args,
-            **kwargs,
-        )
-
-    def get(self, request, room_name):
-        form = AddRoomMemberForm(
-            room=self.room,
-        )
-
-        return render(
-            request,
-            self.template_name,
-            {
-                "form": form,
-                "room": self.room,
-            },
-        )
-
-    def post(self, request, room_name):
         form = AddRoomMemberForm(
             request.POST,
-            room=self.room,
+            room=room,
         )
 
-        if form.is_valid():
-            user = form.cleaned_data["user"]
-
-            self.room.members.add(user)
-
-            return redirect(
-                "add_room_member",
-                room_name=self.room.name,
+        if not form.is_valid():
+            return JsonResponse(
+                {
+                    "success": False,
+                    "errors": form.errors,
+                },
+                status=400,
             )
 
-        return render(
-            request,
-            self.template_name,
+        user = form.cleaned_data["user"]
+
+        room.members.add(user)
+
+        return JsonResponse(
             {
-                "form": form,
-                "room": self.room,
+                "success": True,
+                "member": {
+                    "id": user.id,
+                    "username": user.username,
+                    "avatar": (
+                        user.avatar.url
+                        if user.avatar
+                        else None
+                    ),
+                },
             },
+            status=201,
         )
