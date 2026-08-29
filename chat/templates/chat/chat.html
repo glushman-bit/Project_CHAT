@@ -226,6 +226,19 @@
                     ></textarea>
                 </div>
 
+                <div class="form-group">
+                    <label for="create-room-avatar">
+                        Аватар комнаты
+                    </label>
+
+                    <input
+                        type="file"
+                        id="create-room-avatar"
+                        name="avatar"
+                        accept="image/*"
+                    >
+                </div>
+
                 <div class="form-group checkbox-group">
                     <label for="create-room-private">
                         <input
@@ -257,6 +270,131 @@
         </div>
     </div>
 
+
+    <!-- =========================
+         Модальное окно редактирования комнаты
+    ========================== -->
+
+    {% if is_room_owner %}
+
+    <div
+        id="edit-room-modal"
+        class="modal hidden"
+    >
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+
+                <h2>Изменение комнаты</h2>
+
+                <p>
+                    Измените настройки комнаты
+                </p>
+
+            </div>
+
+
+            <form id="edit-room-form">
+
+                {% csrf_token %}
+
+                <div
+                    id="edit-room-error"
+                    class="form-error hidden"
+                ></div>
+
+
+                <div class="form-group">
+
+                    <label for="edit-room-name">
+                        Название комнаты
+                    </label>
+
+                    <input
+                        type="text"
+                        id="edit-room-name"
+                        name="name"
+                        maxlength="100"
+                        required
+                        value="{{ room.name }}"
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="edit-room-description">
+                        Описание
+                    </label>
+
+                    <textarea
+                        id="edit-room-description"
+                        name="description"
+                        rows="4"
+                    >{{ room.description }}</textarea>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="edit-room-avatar">
+                        Аватар комнаты
+                    </label>
+
+                    <input
+                        type="file"
+                        id="edit-room-avatar"
+                        name="avatar"
+                        accept="image/*"
+                    >
+
+                </div>
+
+
+                <div class="form-group checkbox-group">
+
+                    <label for="edit-room-private">
+
+                        <input
+                            type="checkbox"
+                            id="edit-room-private"
+                            name="is_private"
+                            {% if room.is_private %}checked{% endif %}
+                        >
+
+                        Приватная комната
+
+                    </label>
+
+                </div>
+
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Сохранить
+                </button>
+
+
+                <button
+                    type="button"
+                    class="modal-cancel-button"
+                    data-close-modal="edit-room-modal"
+                >
+                    Отмена
+                </button>
+
+            </form>
+
+        </div>
+
+    </div>
+
+    {% endif %}
 
     <!-- =========================
          Модальное окно добавления участника
@@ -332,229 +470,384 @@
     <!-- =========================
          Основной интерфейс чата
     ========================== -->
+
     <div class="chat-layout {% if not user.is_authenticated %}hidden{% endif %}">
 
-        <!-- Боковая панель -->
-        <aside class="rooms-sidebar">
+    <!-- Боковая панель комнат -->
+    <aside
+        id="rooms-sidebar"
+        class="rooms-sidebar"
+    >
 
-            <div class="rooms-header">
-                <h2>💬 Чаты</h2>
-            </div>
-
-            <div class="rooms-list">
-
-                {% for chat_room in rooms %}
-
-                    <a
-                        href="{% url 'chat' room_name=chat_room.name %}"
-                        class="room-link {% if chat_room.name == room_name %}active{% endif %}"
-                    >
-                        <span class="room-icon">
-                            {% if chat_room.is_private %}
-                                🔒
-                            {% else %}
-                                💬
-                            {% endif %}
-                        </span>
-
-                        <span class="room-name">
-                            {{ chat_room.name }}
-                        </span>
-                    </a>
-
-                {% empty %}
-
-                    <div class="rooms-empty">
-                        Нет доступных чатов
-                    </div>
-
-                {% endfor %}
-
-            </div>
+        <div class="rooms-header">
 
             <button
                 type="button"
-                id="create-room-button"
-                class="create-room-button"
+                id="rooms-toggle-button"
+                class="rooms-toggle-button"
+                aria-label="Свернуть список комнат"
+                title="Свернуть список комнат"
             >
-                + Создать чат
+                ☰
             </button>
 
-        </aside>
+            <span class="rooms-header-title">
+                Чаты
+            </span>
 
+        </div>
 
-        <!-- Основная область чата -->
-        <main class="chat-container">
+        <div class="rooms-list">
 
-            <header class="chat-header">
+            {% for chat_room in rooms %}
 
-                <div class="online-users">
+                <a
+                    href="{% url 'chat' chat_room.name %}"
+                    class="room-link {% if room.name == chat_room.name %}active{% endif %}"
+                >
+                    <div class="room-avatar">
 
-                    <div class="online-header">
-
-                        <!-- Название комнаты и количество участников -->
-                        <div class="chat-title">
-
-                            <h3>
-                                {{ room.name }}
-                            </h3>
-
-                            <span>
-                                Участники:
-                                <span id="room-members-count">
-                                    {{ room_members|length }}
-                                </span>
-                            </span>
-
-                        </div>
-
-
-                        <!-- Меню пользователя -->
-                        {% if user.is_authenticated %}
-
-                        <div class="user-menu">
-
-                            <button
-                                id="user-menu-button"
-                                class="user-menu-button"
-                                aria-label="Меню пользователя"
-                                type="button"
+                        {% if chat_room.avatar %}
+                            <img
+                                src="{{ chat_room.avatar.url }}"
+                                alt="{{ chat_room.name }}"
                             >
-                                ☰
-                            </button>
-
-                            <div
-                                id="user-menu-dropdown"
-                                class="user-menu-dropdown hidden"
-                            >
-
-                                <!-- Участники комнаты -->
-                                <div class="room-menu-section">
-
-                                    <div class="room-menu-title">
-                                        Участники
-                                        <span id="room-members-menu-count">
-                                            {{ room_members|length }}
-                                        </span>
-                                    </div>
-
-                                    <div
-                                        id="room-members-list"
-                                        class="room-members-list"
-                                    >
-
-                                        {% for member in room_members %}
-
-                                            <div
-                                                class="room-member"
-                                                data-user-id="{{ member.id }}"
-                                                data-username="{{ member.username|escape }}"
-                                            >
-
-                                                <div class="room-member-avatar">
-
-                                                    {% if member.avatar %}
-
-                                                        <img
-                                                            src="{{ member.avatar.url }}"
-                                                            alt="{{ member.username }}"
-                                                        >
-
-                                                    {% else %}
-
-                                                        {{ member.username|first|upper }}
-
-                                                    {% endif %}
-
-                                                </div>
-
-                                                <span class="room-member-name">
-                                                    {{ member.username }}
-                                                </span>
-
-                                                <span
-                                                    class="participant-status"
-                                                    data-username="{{ member.username|escape }}"
-                                                    title="Оффлайн"
-                                                ></span>
-
-                                                {% if member.id == room.owner_id %}
-
-                                                    <span class="room-owner">
-                                                        владелец
-                                                    </span>
-
-                                                {% endif %}
-
-                                            </div>
-
-                                        {% endfor %}
-
-                                    </div>
-
-
-                                    {% if is_room_owner %}
-
-                                        <button
-                                            type="button"
-                                            id="add-member-button"
-                                            class="user-menu-item"
-                                        >
-                                            ＋ Добавить участника
-                                        </button>
-
-                                    {% endif %}
-
-                                </div>
-
-                                <div class="menu-divider"></div>
-
-
-                                <!-- Профиль -->
-                                <a
-                                    href="{% url 'profile' %}"
-                                    class="user-menu-item"
-                                >
-                                    👤 Профиль
-                                </a>
-
-
-                                <!-- Logout -->
-                                <form id="logout-form">
-
-                                    {% csrf_token %}
-
-                                    <button
-                                        type="button"
-                                        id="logout-button"
-                                        class="user-menu-item logout-item"
-                                    >
-                                        🚪 Выйти
-                                    </button>
-
-                                </form>
-
-                            </div>
-
-                        </div>
-
+                        {% else %}
+                            {{ chat_room.name|first|upper }}
                         {% endif %}
+
+                        {% if chat_room.is_private %}
+                            <span
+                                class="room-private-icon"
+                                title="Приватная комната"
+                            >
+                                🔒
+                            </span>
+                        {% endif %}
+
+                    </div>
+
+                    <span class="room-name">
+                        {{ chat_room.name }}
+                    </span>
+
+                </a>
+
+            {% empty %}
+
+                <div class="rooms-empty">
+                    Нет доступных чатов
+                </div>
+
+            {% endfor %}
+
+        </div>
+
+
+        <button
+            type="button"
+            id="create-room-button"
+            class="create-room-button"
+            title="Создать чат"
+        >
+            <span class="create-room-icon">＋</span>
+            <span class="create-room-text">
+                Создать чат
+            </span>
+        </button>
+
+    </aside>
+
+
+    <!-- Основная область чата -->
+    <main class="chat-container">
+
+        <header class="chat-header">
+
+    <div class="online-users">
+
+        <div class="online-header">
+
+            <!-- Название комнаты -->
+            <div class="chat-title">
+
+                <button
+                    type="button"
+                    id="room-menu-button"
+                    class="room-title-button"
+                    aria-label="Управление комнатой"
+                >
+
+                    <span
+                        id="room-avatar"
+                        class="room-title-avatar"
+                    >
+                        {% if room.avatar %}
+                            <img
+                                src="{{ room.avatar.url }}"
+                                alt="{{ room.name }}"
+                            >
+                        {% else %}
+                            {{ room.name|first|upper }}
+                        {% endif %}
+                    </span>
+
+                    <span
+                        id="room-title-name"
+                        class="room-title-name"
+                    >
+                        {{ room.name }}
+                    </span>
+
+                    <span class="room-title-arrow">
+                        ▾
+                    </span>
+
+                </button>
+
+                <span>
+                    Участники:
+                    <span id="room-members-count">
+                        {{ room_members|length }}
+                    </span>
+                </span>
+
+            </div>
+
+
+            <!-- Меню комнаты -->
+            <div
+                id="room-menu-dropdown"
+                class="room-menu-dropdown hidden"
+            >
+
+                <div class="room-menu-header">
+
+                    <div
+                        id="room-menu-avatar"
+                        class="room-menu-avatar"
+                    >
+                        {% if room.avatar %}
+                            <img
+                                src="{{ room.avatar.url }}"
+                                alt="{{ room.name }}"
+                            >
+                        {% else %}
+                            {{ room.name|first|upper }}
+                        {% endif %}
+                    </div>
+
+                    <div class="room-menu-room-info">
+
+                        <strong id="room-menu-name">
+                            {{ room.name }}
+                        </strong>
+
+                        <span id="room-menu-description">
+                            {{ room.description|default:"Без описания" }}
+                        </span>
 
                     </div>
 
                 </div>
 
-            </header>
+
+                {% if is_room_owner %}
+
+                    <button
+                        type="button"
+                        id="edit-room-button"
+                        class="user-menu-item"
+                    >
+                        ✏ Изменить комнату
+                    </button>
+
+                    <div class="menu-divider"></div>
+
+                {% endif %}
 
 
-            <!-- Сообщения -->
-            <div
-                id="chat-log"
-                class="chat-log"
-            ></div>
+                <div class="room-members-section">
+
+                    <div class="room-menu-title">
+
+                        Участники
+
+                        <span id="room-members-menu-count">
+                            {{ room_members|length }}
+                        </span>
+
+                    </div>
 
 
-            <!-- Ввод сообщения -->
+                    <div
+                        id="room-members-list"
+                        class="room-members-list"
+                    >
+
+                        {% for member in room_members %}
+
+                            <div
+                                class="room-member"
+                                data-user-id="{{ member.id }}"
+                                data-username="{{ member.username }}"
+                            >
+
+                                <div class="room-member-avatar">
+
+                                    {% if member.avatar %}
+
+                                        <img
+                                            src="{{ member.avatar.url }}"
+                                            alt="{{ member.username }}"
+                                        >
+
+                                    {% else %}
+
+                                        {{ member.username|first|upper }}
+
+                                    {% endif %}
+
+                                </div>
+
+
+                                <span class="participant-status"></span>
+
+
+                                <span class="room-member-name">
+                                    {{ member.username }}
+                                </span>
+
+
+                                {% if member.id == room.owner_id %}
+
+                                    <span class="room-owner">
+                                        владелец
+                                    </span>
+
+                                {% elif is_room_owner %}
+
+                                    <button
+                                        type="button"
+                                        class="remove-member-button"
+                                        data-user-id="{{ member.id }}"
+                                        title="Удалить участника"
+                                    >
+                                        ×
+                                    </button>
+
+                                {% endif %}
+
+                            </div>
+
+                        {% endfor %}
+
+                    </div>
+
+
+                    {% if is_room_owner %}
+
+                        <button
+                            type="button"
+                            id="add-member-button"
+                            class="user-menu-item"
+                        >
+                            ＋ Добавить участника
+                        </button>
+
+                    {% endif %}
+
+                </div>
+
+
+                {% if not is_room_owner %}
+
+                    <div class="menu-divider"></div>
+
+                    <button
+                        type="button"
+                        id="leave-room-button"
+                        class="user-menu-item leave-room-item"
+                    >
+                        🚪 Покинуть чат
+                    </button>
+
+                {% endif %}
+
+            </div>
+
+
+            <!-- Пользовательское меню -->
+            {% if user.is_authenticated %}
+
+                <div class="user-menu">
+
+                    <button
+                        id="user-menu-button"
+                        class="user-menu-button"
+                        aria-label="Меню пользователя"
+                        type="button"
+                    >
+                        ☰
+                    </button>
+
+                    <div
+                        id="user-menu-dropdown"
+                        class="user-menu-dropdown hidden"
+                    >
+
+                        <a
+                            href="{% url 'profile' %}"
+                            class="user-menu-item"
+                        >
+                            👤 Профиль
+                        </a>
+
+
+                        <form id="logout-form">
+
+                            {% csrf_token %}
+
+                            <button
+                                type="button"
+                                id="logout-button"
+                                class="user-menu-item logout-item"
+                            >
+                                🚪 Выйти
+                            </button>
+
+                        </form>
+
+                    </div>
+
+                </div>
+
+            {% endif %}
+
+        </div>
+
+
+        <!-- Онлайн-пользователи больше не показываются именами -->
+        <div
+            id="online-users-list"
+            class="online-users-list"
+        ></div>
+
+    </div>
+
+</header>
+
+
+        <!-- Сообщения -->
+        <div
+            id="chat-log"
+            class="chat-log"
+        ></div>
+
+
+        <!-- Ввод сообщения -->
+        {% if is_room_member %}
+
             <div class="chat-input">
 
                 <input
@@ -570,9 +863,32 @@
 
             </div>
 
-        </main>
+        {% else %}
 
-    </div>
+            <div class="chat-join-prompt">
+
+                <div class="chat-join-message">
+                    <strong>Вы не состоите в этой комнате</strong>
+                    <span>
+                        Чтобы отправлять сообщения, вступите в комнату.
+                    </span>
+                </div>
+
+                <button
+                    type="button"
+                    id="join-room-button"
+                    class="join-room-button"
+                >
+                    Вступить в комнату
+                </button>
+
+            </div>
+
+        {% endif %}
+
+    </main>
+
+</div>
 
 
     <!-- =========================
@@ -600,6 +916,13 @@
                     false
                 {% endif %},
 
+            isRoomMember:
+                {% if is_room_member %}
+                    true
+                {% else %}
+                    false
+                {% endif %},
+
             username:
                 "{{ user.username|default:''|escapejs }}",
 
@@ -615,11 +938,22 @@
             createRoomUrl:
                 "{% url 'create_room' %}",
 
+            updateRoomUrl:
+                "{% url 'update_room' room_id=room.id %}",
+
             addMemberUrl:
                 "{% url 'add_room_member' room_id=room.id %}",
 
+            leaveRoomUrl:
+                "{% url 'leave_room' room_id=room.id %}",
+
             roomUrlTemplate:
-                "{% url 'chat' room_name='ROOM_NAME' %}"
+                "{% url 'chat' room_name='ROOM_NAME' %}",
+
+            joinRoomUrl:
+                "{% url 'join_room' room_id=room.id %}",
+
+
 
         };
 
