@@ -1,140 +1,631 @@
 {% load static %}
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Чат</title>
+    <title>{{ room.name|default:"Чат" }}</title>
     <link rel="stylesheet" href="{% static 'chat/css/chat.css' %}">
 </head>
 <body>
 
-    <!-- Модальное окно входа -->
-    <div id="login-container" class="modal {% if user.is_authenticated %}hidden{% endif %}">
+    <!-- =========================
+         Модальное окно входа
+    ========================== -->
+    <div id="login-container"
+         class="modal {% if user.is_authenticated %}hidden{% endif %}">
+
         <div class="modal-content">
+
             <div class="modal-header">
                 <h2>Вход в чат</h2>
                 <p>Войдите, чтобы продолжить общение</p>
             </div>
+
             <form id="login-form">
+
                 {% csrf_token %}
+
                 <div id="login-error" class="form-error"></div>
+
                 <div class="form-group">
-                    <label for="login-username">Логин</label>
-                    <input type="text" id="login-username" name="username" required autocomplete="username">
+                    <label for="login-username">
+                        Логин
+                    </label>
+
+                    <input
+                        type="text"
+                        id="login-username"
+                        name="username"
+                        required
+                        autocomplete="username"
+                    >
                 </div>
+
                 <div class="form-group">
-                    <label for="login-password">Пароль</label>
-                    <input type="password" id="login-password" name="password" required autocomplete="current-password">
+                    <label for="login-password">
+                        Пароль
+                    </label>
+
+                    <input
+                        type="password"
+                        id="login-password"
+                        name="password"
+                        required
+                        autocomplete="current-password"
+                    >
                 </div>
-                <button type="submit" class="primary-button">Войти</button>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Войти
+                </button>
+
             </form>
+
             <div class="modal-footer">
                 Нет аккаунта?
-                <button type="button" id="show-register" class="link-button">Зарегистрироваться</button>
+
+                <button
+                    type="button"
+                    id="show-register"
+                    class="link-button"
+                >
+                    Зарегистрироваться
+                </button>
             </div>
+
         </div>
     </div>
 
-    <!-- Модальное окно регистрации -->
+
+    <!-- =========================
+         Модальное окно регистрации
+    ========================== -->
     <div id="register-container" class="modal hidden">
+
         <div class="modal-content">
+
             <div class="modal-header">
                 <h2>Создание аккаунта</h2>
                 <p>Заполните данные для регистрации</p>
             </div>
+
             <form id="register-form">
+
                 {% csrf_token %}
+
                 <div id="register-error" class="form-error"></div>
+
                 <div class="form-group">
-                    <label for="register-username">Логин</label>
-                    <input type="text" id="register-username" name="username" required>
+                    <label for="register-username">
+                        Логин
+                    </label>
+
+                    <input
+                        type="text"
+                        id="register-username"
+                        name="username"
+                        required
+                    >
                 </div>
+
                 <div class="form-group">
-                    <label for="register-email">Email</label>
-                    <input type="email" id="register-email" name="email" required>
+                    <label for="register-email">
+                        Email
+                    </label>
+
+                    <input
+                        type="email"
+                        id="register-email"
+                        name="email"
+                        required
+                    >
                 </div>
+
                 <div class="form-group">
-                    <label for="register-password">Пароль</label>
-                    <input type="password" id="register-password" name="password" required>
+                    <label for="register-password">
+                        Пароль
+                    </label>
+
+                    <input
+                        type="password"
+                        id="register-password"
+                        name="password"
+                        required
+                    >
                 </div>
+
                 <div class="form-group">
-                    <label for="register-password-confirm">Повторите пароль</label>
-                    <input type="password" id="register-password-confirm" name="password_confirm" required>
+                    <label for="register-password-confirm">
+                        Повторите пароль
+                    </label>
+
+                    <input
+                        type="password"
+                        id="register-password-confirm"
+                        name="password_confirm"
+                        required
+                    >
                 </div>
-                <button type="submit" class="primary-button">Создать аккаунт</button>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Создать аккаунт
+                </button>
+
             </form>
+
             <div class="modal-footer">
                 Уже есть аккаунт?
-                <button type="button" id="show-login" class="link-button">Войти</button>
+
+                <button
+                    type="button"
+                    id="show-login"
+                    class="link-button"
+                >
+                    Войти
+                </button>
             </div>
+
         </div>
     </div>
 
-    <!-- Основной интерфейс чата -->
+
+    <!-- =========================
+         Модальное окно создания комнаты
+    ========================== -->
+    <div id="create-room-modal" class="modal hidden">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h2>Создать комнату</h2>
+                <p>Создайте новую комнату для общения</p>
+            </div>
+
+            <form id="create-room-form">
+
+                {% csrf_token %}
+
+                <div
+                    id="create-room-error"
+                    class="form-error hidden"
+                ></div>
+
+                <div class="form-group">
+                    <label for="create-room-name">
+                        Название комнаты
+                    </label>
+
+                    <input
+                        type="text"
+                        id="create-room-name"
+                        name="name"
+                        placeholder="Введите название комнаты"
+                        maxlength="100"
+                        required
+                    >
+                </div>
+
+                <div class="form-group">
+                    <label for="create-room-description">
+                        Описание
+                    </label>
+
+                    <textarea
+                        id="create-room-description"
+                        name="description"
+                        placeholder="Введите описание комнаты"
+                        rows="4"
+                    ></textarea>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label for="create-room-private">
+                        <input
+                            type="checkbox"
+                            id="create-room-private"
+                            name="is_private"
+                        >
+                        Приватная комната
+                    </label>
+                </div>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Создать
+                </button>
+
+                <button
+                    type="button"
+                    class="modal-cancel-button"
+                    data-close-modal="create-room-modal"
+                >
+                    Отмена
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+
+
+    <!-- =========================
+         Модальное окно добавления участника
+    ========================== -->
+    {% if is_room_owner %}
+    <div id="add-member-modal" class="modal hidden">
+
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h2>Добавить участника</h2>
+                <p>Выберите пользователя для добавления в комнату</p>
+            </div>
+
+            <form id="add-member-form">
+
+                {% csrf_token %}
+
+                <div
+                    id="add-member-error"
+                    class="form-error hidden"
+                ></div>
+
+                <div class="form-group">
+                    <label for="add-member-user">
+                        Пользователь
+                    </label>
+
+                    <select
+                        id="add-member-user"
+                        name="user"
+                        required
+                    >
+                        <option value="">
+                            Выберите пользователя
+                        </option>
+
+                        {% for available_user in available_users %}
+                            <option value="{{ available_user.id }}">
+                                {{ available_user.username }}
+                            </option>
+                        {% empty %}
+                            <option value="" disabled>
+                                Нет доступных пользователей
+                            </option>
+                        {% endfor %}
+
+                    </select>
+                </div>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Добавить
+                </button>
+
+                <button
+                    type="button"
+                    class="modal-cancel-button"
+                    data-close-modal="add-member-modal"
+                >
+                    Отмена
+                </button>
+
+            </form>
+
+        </div>
+    </div>
+    {% endif %}
+
+
+    <!-- =========================
+         Основной интерфейс чата
+    ========================== -->
     <div class="chat-layout {% if not user.is_authenticated %}hidden{% endif %}">
+
         <!-- Боковая панель -->
         <aside class="rooms-sidebar">
+
             <div class="rooms-header">
                 <h2>💬 Чаты</h2>
             </div>
+
             <div class="rooms-list">
+
                 {% for chat_room in rooms %}
-                    <a href="{% url 'chat' room_name=chat_room.name %}" class="room-link {% if chat_room.name == room_name %}active{% endif %}">
-                        <span class="room-icon">{% if chat_room.is_private %}🔒{% else %}💬{% endif %}</span>
-                        <span class="room-name">{{ chat_room.name }}</span>
+
+                    <a
+                        href="{% url 'chat' room_name=chat_room.name %}"
+                        class="room-link {% if chat_room.name == room_name %}active{% endif %}"
+                    >
+                        <span class="room-icon">
+                            {% if chat_room.is_private %}
+                                🔒
+                            {% else %}
+                                💬
+                            {% endif %}
+                        </span>
+
+                        <span class="room-name">
+                            {{ chat_room.name }}
+                        </span>
                     </a>
+
                 {% empty %}
-                    <div class="rooms-empty">Нет доступных чатов</div>
+
+                    <div class="rooms-empty">
+                        Нет доступных чатов
+                    </div>
+
                 {% endfor %}
+
             </div>
-            <a href="{% url 'create_room' %}" class="create-room-button">+ Создать чат</a>
+
+            <button
+                type="button"
+                id="create-room-button"
+                class="create-room-button"
+            >
+                + Создать чат
+            </button>
+
         </aside>
+
 
         <!-- Основная область чата -->
         <main class="chat-container">
-            <header class="chat-header">
-                <div class="online-users">
-                    <div class="online-header">
-                        <h3 class="online-title">Пользователи онлайн: <span id="online-users-count">0</span></h3>
 
-                        {% if user.is_authenticated %}
-                        <div class="user-menu">
-                            <button id="user-menu-button" class="user-menu-button" aria-label="Меню пользователя">☰</button>
-                            <div id="user-menu-dropdown" class="user-menu-dropdown hidden">
-                                <a href="{% url 'profile' %}" class="user-menu-item">👤 Профиль</a>
-                                <form id="logout-form">
-                                    {% csrf_token %}
-                                    <button type="button" id="logout-button" class="user-menu-item logout-item">🚪 Выйти</button>
-                                </form>
-                            </div>
+            <header class="chat-header">
+
+                <div class="online-users">
+
+                    <div class="online-header">
+
+                        <!-- Название комнаты и количество участников -->
+                        <div class="chat-title">
+
+                            <h3>
+                                {{ room.name }}
+                            </h3>
+
+                            <span>
+                                Участники:
+                                <span id="room-members-count">
+                                    {{ room_members|length }}
+                                </span>
+                            </span>
+
                         </div>
+
+
+                        <!-- Меню пользователя -->
+                        {% if user.is_authenticated %}
+
+                        <div class="user-menu">
+
+                            <button
+                                id="user-menu-button"
+                                class="user-menu-button"
+                                aria-label="Меню пользователя"
+                                type="button"
+                            >
+                                ☰
+                            </button>
+
+                            <div
+                                id="user-menu-dropdown"
+                                class="user-menu-dropdown hidden"
+                            >
+
+                                <!-- Участники комнаты -->
+                                <div class="room-menu-section">
+
+                                    <div class="room-menu-title">
+                                        Участники
+                                        <span id="room-members-menu-count">
+                                            {{ room_members|length }}
+                                        </span>
+                                    </div>
+
+                                    <div
+                                        id="room-members-list"
+                                        class="room-members-list"
+                                    >
+
+                                        {% for member in room_members %}
+
+                                            <div
+                                                class="room-member"
+                                                data-user-id="{{ member.id }}"
+                                                data-username="{{ member.username|escape }}"
+                                            >
+
+                                                <div class="room-member-avatar">
+
+                                                    {% if member.avatar %}
+
+                                                        <img
+                                                            src="{{ member.avatar.url }}"
+                                                            alt="{{ member.username }}"
+                                                        >
+
+                                                    {% else %}
+
+                                                        {{ member.username|first|upper }}
+
+                                                    {% endif %}
+
+                                                </div>
+
+                                                <span class="room-member-name">
+                                                    {{ member.username }}
+                                                </span>
+
+                                                <span
+                                                    class="participant-status"
+                                                    data-username="{{ member.username|escape }}"
+                                                    title="Оффлайн"
+                                                ></span>
+
+                                                {% if member.id == room.owner_id %}
+
+                                                    <span class="room-owner">
+                                                        владелец
+                                                    </span>
+
+                                                {% endif %}
+
+                                            </div>
+
+                                        {% endfor %}
+
+                                    </div>
+
+
+                                    {% if is_room_owner %}
+
+                                        <button
+                                            type="button"
+                                            id="add-member-button"
+                                            class="user-menu-item"
+                                        >
+                                            ＋ Добавить участника
+                                        </button>
+
+                                    {% endif %}
+
+                                </div>
+
+                                <div class="menu-divider"></div>
+
+
+                                <!-- Профиль -->
+                                <a
+                                    href="{% url 'profile' %}"
+                                    class="user-menu-item"
+                                >
+                                    👤 Профиль
+                                </a>
+
+
+                                <!-- Logout -->
+                                <form id="logout-form">
+
+                                    {% csrf_token %}
+
+                                    <button
+                                        type="button"
+                                        id="logout-button"
+                                        class="user-menu-item logout-item"
+                                    >
+                                        🚪 Выйти
+                                    </button>
+
+                                </form>
+
+                            </div>
+
+                        </div>
+
                         {% endif %}
+
                     </div>
-                    <div id="online-users-list"></div>
+
                 </div>
+
             </header>
 
-            <div id="chat-log" class="chat-log"></div>
 
+            <!-- Сообщения -->
+            <div
+                id="chat-log"
+                class="chat-log"
+            ></div>
+
+
+            <!-- Ввод сообщения -->
             <div class="chat-input">
-                <input type="text" id="chat-message-input" placeholder="Введите сообщение..." autocomplete="off">
-                <button id="chat-message-submit">Отправить</button>
+
+                <input
+                    type="text"
+                    id="chat-message-input"
+                    placeholder="Введите сообщение..."
+                    autocomplete="off"
+                >
+
+                <button id="chat-message-submit">
+                    Отправить
+                </button>
+
             </div>
+
         </main>
+
     </div>
 
+
+    <!-- =========================
+         Django configuration
+    ========================== -->
     <script>
-        // Конфигурация из Django
+
         const chatConfig = {
-            roomName: "{{ room_name|default:'general' }}",
-            isAuthenticated: {% if user.is_authenticated %}true{% else %}false{% endif %},
-            username: "{{ user.username|default:'' }}",
-            loginUrl: "{% url 'login' %}",
-            registerUrl: "{% url 'register' %}",
-            logoutUrl: "{% url 'logout' %}"
+
+            roomId: {{ room.id }},
+
+            roomName: "{{ room_name|default:'general'|escapejs }}",
+
+            isAuthenticated:
+                {% if user.is_authenticated %}
+                    true
+                {% else %}
+                    false
+                {% endif %},
+
+            isRoomOwner:
+                {% if is_room_owner %}
+                    true
+                {% else %}
+                    false
+                {% endif %},
+
+            username:
+                "{{ user.username|default:''|escapejs }}",
+
+            loginUrl:
+                "{% url 'login' %}",
+
+            registerUrl:
+                "{% url 'register' %}",
+
+            logoutUrl:
+                "{% url 'logout' %}",
+
+            createRoomUrl:
+                "{% url 'create_room' %}",
+
+            addMemberUrl:
+                "{% url 'add_room_member' room_id=room.id %}",
+
+            roomUrlTemplate:
+                "{% url 'chat' room_name='ROOM_NAME' %}"
+
         };
+
     </script>
+
     <script src="{% static 'chat/js/chat.js' %}"></script>
+
 </body>
 </html>
