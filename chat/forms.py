@@ -12,11 +12,13 @@ class ChatRoomForm(forms.ModelForm):
         fields = (
             "name",
             "description",
+            "avatar",
             "is_private",
         )
         labels = {
             "name": "Название комнаты",
             "description": "Описание",
+            "avatar": "Аватар комнаты",
             "is_private": "Приватная комната",
         }
         widgets = {
@@ -31,6 +33,40 @@ class ChatRoomForm(forms.ModelForm):
                     "rows": 4,
                 }
             ),
+            "avatar": forms.ClearableFileInput(),
+        }
+
+
+class ChatRoomUpdateForm(forms.ModelForm):
+    """Форма редактирования комнаты."""
+
+    class Meta:
+        model = ChatRoom
+        fields = (
+            "name",
+            "description",
+            "avatar",
+            "is_private",
+        )
+        labels = {
+            "name": "Название комнаты",
+            "description": "Описание",
+            "avatar": "Аватар комнаты",
+            "is_private": "Приватная комната",
+        }
+        widgets = {
+            "name": forms.TextInput(
+                attrs={
+                    "placeholder": "Название комнаты",
+                }
+            ),
+            "description": forms.Textarea(
+                attrs={
+                    "placeholder": "Описание комнаты",
+                    "rows": 4,
+                }
+            ),
+            "avatar": forms.ClearableFileInput(),
         }
 
 
