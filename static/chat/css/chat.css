@@ -277,6 +277,8 @@ button {
 ========================= */
 
 .room-avatar {
+    position: relative;
+
     width: 36px;
     height: 36px;
 
@@ -306,6 +308,26 @@ button {
     object-fit: cover;
 }
 
+.room-private-icon {
+    position: absolute;
+
+    right: 0;
+    bottom: 0;
+
+    width: 16px;
+    height: 16px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    font-size: 15px;
+    line-height: 1;
+
+    z-index: 2;
+}
 
 /* =========================
    Room name

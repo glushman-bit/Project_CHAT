@@ -1,14 +1,15 @@
 const roomName = chatConfig.roomName;
+
 let chatSocket = null;
-let reconnectTimer = null;
+let reconnectTimeout = null;
 let shouldReconnect = true;
 
 const isAuthenticated = chatConfig.isAuthenticated;
 
 
-// =========================
-// DOM elements
-// =========================
+// ==================================================
+// DOM
+// ==================================================
 
 const loginContainer =
     document.getElementById("login-container");
@@ -31,99 +32,151 @@ const showLoginButton =
 const chatLog =
     document.getElementById("chat-log");
 
-const chatMessageInput =
-    document.getElementById("chat-message-input");
 
-const chatMessageSubmit =
-    document.getElementById("chat-message-submit");
+// ==================================================
+// Common helpers
+// ==================================================
 
+function getCsrfToken() {
 
-// =========================
-// User Menu
-// =========================
+    const csrfInput =
+        document.querySelector(
+            "[name=csrfmiddlewaretoken]"
+        );
 
-const userMenuButton =
-    document.getElementById("user-menu-button");
-
-const userMenuDropdown =
-    document.getElementById("user-menu-dropdown");
-
-const logoutButton =
-    document.getElementById("logout-button");
+    return csrfInput
+        ? csrfInput.value
+        : "";
+}
 
 
-// =========================
-// Room Menu
-// =========================
+function showError(message) {
 
-const roomMenuButton =
-    document.getElementById("room-menu-button");
+    const errorElement =
+        document.getElementById("login-error")
+        ||
+        document.getElementById("register-error");
 
-const roomMenuDropdown =
-    document.getElementById("room-menu-dropdown");
+    if (!errorElement) {
+        return;
+    }
 
+    errorElement.textContent = message;
 
-// =========================
-// Room Management
-// =========================
-
-const createRoomButton =
-    document.getElementById("create-room-button");
-
-const createRoomModal =
-    document.getElementById("create-room-modal");
-
-const createRoomForm =
-    document.getElementById("create-room-form");
-
-const createRoomError =
-    document.getElementById("create-room-error");
-
-const addMemberButton =
-    document.getElementById("add-member-button");
-
-const addMemberModal =
-    document.getElementById("add-member-modal");
-
-const addMemberForm =
-    document.getElementById("add-member-form");
-
-const addMemberError =
-    document.getElementById("add-member-error");
-
-const editRoomButton =
-    document.getElementById("edit-room-button");
-
-const editRoomModal =
-    document.getElementById("edit-room-modal");
-
-const editRoomForm =
-    document.getElementById("edit-room-form");
-
-const editRoomError =
-    document.getElementById("edit-room-error");
-
-const leaveRoomButton =
-    document.getElementById("leave-room-button");
-
-const joinRoomButton =
-    document.getElementById("join-room-button");
+    setTimeout(function () {
+        errorElement.textContent = "";
+    }, 4000);
+}
 
 
-// =========================
-// Rooms Sidebar
-// =========================
+function extractFormErrors(errors) {
 
-const roomsSidebar =
-    document.getElementById("rooms-sidebar");
+    if (!errors) {
+        return "";
+    }
 
-const roomsToggleButton =
-    document.getElementById("rooms-toggle-button");
+    const messages = [];
+
+    for (const field in errors) {
+
+        const fieldErrors =
+            errors[field];
+
+        if (Array.isArray(fieldErrors)) {
+
+            fieldErrors.forEach(function (error) {
+
+                messages.push(
+                    typeof error === "object"
+                        ? error.message
+                        : error
+                );
+            });
+
+        } else {
+
+            messages.push(fieldErrors);
+        }
+    }
+
+    return messages.join(" • ");
+}
 
 
-// =========================
+async function apiRequest(
+    url,
+    options = {}
+) {
+
+    const headers = {
+        "X-CSRFToken": getCsrfToken(),
+        ...(options.headers || {}),
+    };
+
+    return fetch(
+        url,
+        {
+            ...options,
+            headers,
+        }
+    );
+}
+
+
+// ==================================================
+// Modal helpers
+// ==================================================
+
+function openModal(modal) {
+
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.remove("hidden");
+}
+
+
+function closeModal(modal) {
+
+    if (!modal) {
+        return;
+    }
+
+    modal.classList.add("hidden");
+}
+
+
+function showModalError(
+    element,
+    message
+) {
+
+    if (!element) {
+        return;
+    }
+
+    element.textContent = message;
+
+    element.classList.remove("hidden");
+}
+
+
+function clearModalError(element) {
+
+    if (!element) {
+        return;
+    }
+
+    element.textContent = "";
+
+    element.classList.add("hidden");
+}
+
+
+// ==================================================
 // WebSocket
-// =========================
+// ==================================================
 
 if (isAuthenticated) {
     connectWebSocket();
@@ -132,17 +185,7 @@ if (isAuthenticated) {
 
 function connectWebSocket() {
 
-    if (!isAuthenticated) {
-        return;
-    }
-
-    if (
-        chatSocket &&
-        (
-            chatSocket.readyState === WebSocket.OPEN ||
-            chatSocket.readyState === WebSocket.CONNECTING
-        )
-    ) {
+    if (!shouldReconnect) {
         return;
     }
 
@@ -157,57 +200,70 @@ function connectWebSocket() {
         );
 
 
-    chatSocket.onopen = function () {
-
-        console.log(
-            "WebSocket connection established"
-        );
-    };
+    chatSocket.onmessage =
+        handleWebSocketMessage;
 
 
-    chatSocket.onmessage = function (event) {
-
-        const data =
-            JSON.parse(event.data);
+    chatSocket.onclose =
+        handleWebSocketClose;
 
 
-        if (data.type === "history") {
+    chatSocket.onerror =
+        function (error) {
 
-            data.messages.forEach(addMessage);
+            console.error(
+                "WebSocket error:",
+                error
+            );
+        };
+}
+
+
+function handleWebSocketMessage(event) {
+
+    const data =
+        JSON.parse(event.data);
+
+
+    switch (data.type) {
+
+        case "history":
+
+            data.messages.forEach(
+                addMessage
+            );
 
             scrollToBottom(false);
 
-            return;
-        }
+            break;
 
 
-        if (data.type === "message") {
+        case "message":
 
             addMessage(data);
 
             scrollToBottom(true);
 
-            return;
-        }
+            break;
 
 
-        if (data.type === "error") {
+        case "error":
 
             showError(data.message);
 
-            return;
-        }
+            break;
 
 
-        if (data.type === "online_users") {
+        case "online_users":
 
-            updateOnlineUsers(data.users);
+            updateOnlineUsers(
+                data.users
+            );
 
-            return;
-        }
+            break;
 
 
-        if (data.type === "user_status") {
+        case "user_status":
 
             showSystemMessage(
                 data.username,
@@ -215,52 +271,45 @@ function connectWebSocket() {
             );
 
             scrollToBottom(true);
-        }
-    };
+
+            break;
 
 
-    chatSocket.onerror = function (error) {
+        default:
 
-        console.error(
-            "WebSocket error:",
-            error
-        );
-    };
-
-
-    chatSocket.onclose = function () {
-
-        console.log(
-            "WebSocket connection closed"
-        );
-
-        chatSocket = null;
-
-        if (!shouldReconnect) {
-            return;
-        }
-
-        if (reconnectTimer) {
-            return;
-        }
-
-        reconnectTimer =
-            setTimeout(
-                function () {
-
-                    reconnectTimer = null;
-
-                    connectWebSocket();
-                },
-                3000
+            console.warn(
+                "Unknown WebSocket message:",
+                data
             );
-    };
+    }
 }
 
 
-// =========================
+function handleWebSocketClose() {
+
+    console.log(
+        "WebSocket connection closed"
+    );
+
+    if (!shouldReconnect) {
+        return;
+    }
+
+    clearTimeout(
+        reconnectTimeout
+    );
+
+    reconnectTimeout =
+        setTimeout(
+            connectWebSocket,
+            3000
+        );
+}
+
+
+// ==================================================
 // Online users
-// =========================
+// ==================================================
 
 function updateOnlineUsers(users) {
 
@@ -273,43 +322,31 @@ function updateOnlineUsers(users) {
         );
 
 
-    members.forEach(
-        function (member) {
+    members.forEach(function (member) {
 
-            const username =
-                member.dataset.username;
+        const username =
+            member.dataset.username;
 
-            const status =
-                member.querySelector(
-                    ".participant-status"
-                );
+        const status =
+            member.querySelector(
+                ".participant-status"
+            );
 
-
-            if (!status) {
-                return;
-            }
-
-
-            if (onlineUsers.has(username)) {
-
-                status.classList.add(
-                    "online"
-                );
-
-            } else {
-
-                status.classList.remove(
-                    "online"
-                );
-            }
+        if (!status) {
+            return;
         }
-    );
+
+        status.classList.toggle(
+            "online",
+            onlineUsers.has(username)
+        );
+    });
 }
 
 
-// =========================
+// ==================================================
 // Messages
-// =========================
+// ==================================================
 
 function addMessage(data) {
 
@@ -321,22 +358,19 @@ function addMessage(data) {
     const messageElement =
         document.createElement("div");
 
-
     const currentUser =
         chatConfig.username;
+
+
+    messageElement.classList.add(
+        "message"
+    );
 
 
     if (data.username === currentUser) {
 
         messageElement.classList.add(
-            "message",
             "own"
-        );
-
-    } else {
-
-        messageElement.classList.add(
-            "message"
         );
     }
 
@@ -358,63 +392,28 @@ function addMessage(data) {
 
 
     const avatar =
-        document.createElement("span");
-
-    avatar.classList.add(
-        "message-avatar"
-    );
-
-
-    if (data.avatar) {
-
-        const avatarImage =
-            document.createElement("img");
-
-
-        avatarImage.src =
-            data.avatar;
-
-        avatarImage.alt =
-            `Аватар ${data.username}`;
-
-
-        avatar.appendChild(
-            avatarImage
+        createAvatar(
+            data.username,
+            data.avatar,
+            "message-avatar"
         );
-
-    } else {
-
-        avatar.textContent =
-            data.username
-                .charAt(0)
-                .toUpperCase();
-    }
 
 
     const usernameText =
         document.createElement("span");
 
-
     usernameText.textContent =
         data.username;
 
 
-    username.appendChild(
-        avatar
-    );
-
-    username.appendChild(
-        usernameText
-    );
+    username.appendChild(avatar);
+    username.appendChild(usernameText);
 
 
     const text =
         document.createElement("div");
 
-    text.classList.add(
-        "text"
-    );
-
+    text.classList.add("text");
 
     text.textContent =
         data.message;
@@ -423,9 +422,7 @@ function addMessage(data) {
     const time =
         document.createElement("div");
 
-    time.classList.add(
-        "time"
-    );
+    time.classList.add("time");
 
 
     const date =
@@ -437,22 +434,14 @@ function addMessage(data) {
             [],
             {
                 hour: "2-digit",
-                minute: "2-digit"
+                minute: "2-digit",
             }
         );
 
 
-    content.appendChild(
-        username
-    );
-
-    content.appendChild(
-        text
-    );
-
-    content.appendChild(
-        time
-    );
+    content.appendChild(username);
+    content.appendChild(text);
+    content.appendChild(time);
 
 
     messageElement.appendChild(
@@ -463,6 +452,46 @@ function addMessage(data) {
     chatLog.appendChild(
         messageElement
     );
+}
+
+
+function createAvatar(
+    name,
+    imageUrl,
+    className
+) {
+
+    const avatar =
+        document.createElement("span");
+
+    avatar.classList.add(
+        className
+    );
+
+
+    if (imageUrl) {
+
+        const image =
+            document.createElement("img");
+
+        image.src =
+            imageUrl;
+
+        image.alt =
+            `Аватар ${name}`;
+
+        avatar.appendChild(image);
+
+    } else {
+
+        avatar.textContent =
+            name
+                .charAt(0)
+                .toUpperCase();
+    }
+
+
+    return avatar;
 }
 
 
@@ -478,7 +507,6 @@ function showSystemMessage(
 
     const element =
         document.createElement("div");
-
 
     element.classList.add(
         "system-message"
@@ -501,9 +529,7 @@ function showSystemMessage(
     }
 
 
-    chatLog.appendChild(
-        element
-    );
+    chatLog.appendChild(element);
 }
 
 
@@ -520,7 +546,7 @@ function scrollToBottom(
 
         chatLog.scrollTo({
             top: chatLog.scrollHeight,
-            behavior: "smooth"
+            behavior: "smooth",
         });
 
     } else {
@@ -531,51 +557,25 @@ function scrollToBottom(
 }
 
 
-function showError(message) {
-
-    const errorElement =
-        document.getElementById(
-            "login-error"
-        )
-        ||
-        document.getElementById(
-            "register-error"
-        );
-
-
-    if (!errorElement) {
-        return;
-    }
-
-
-    errorElement.textContent =
-        message;
-
-
-    setTimeout(
-        function () {
-
-            errorElement.textContent = "";
-
-        },
-        4000
-    );
-}
-
-
-// =========================
+// ==================================================
 // Send message
-// =========================
+// ==================================================
 
 function sendMessage() {
 
-    if (!chatMessageInput) {
+    const input =
+        document.getElementById(
+            "chat-message-input"
+        );
+
+
+    if (!input) {
         return;
     }
 
 
     const message =
-        chatMessageInput.value.trim();
+        input.value.trim();
 
 
     if (!message) {
@@ -584,7 +584,8 @@ function sendMessage() {
 
 
     if (
-        !chatSocket ||
+        !chatSocket
+        ||
         chatSocket.readyState !== WebSocket.OPEN
     ) {
 
@@ -599,34 +600,47 @@ function sendMessage() {
 
     chatSocket.send(
         JSON.stringify({
-            message: message
+            message,
         })
     );
 
 
-    chatMessageInput.value = "";
+    input.value = "";
 
-    chatMessageInput.focus();
+    input.focus();
 }
 
 
-if (chatMessageSubmit) {
+const messageSubmitButton =
+    document.getElementById(
+        "chat-message-submit"
+    );
 
-    chatMessageSubmit.addEventListener(
+
+const messageInput =
+    document.getElementById(
+        "chat-message-input"
+    );
+
+
+if (messageSubmitButton) {
+
+    messageSubmitButton.addEventListener(
         "click",
         sendMessage
     );
 }
 
 
-if (chatMessageInput) {
+if (messageInput) {
 
-    chatMessageInput.addEventListener(
+    messageInput.addEventListener(
         "keydown",
         function (event) {
 
             if (
-                event.key === "Enter" &&
+                event.key === "Enter"
+                &&
                 !event.shiftKey
             ) {
 
@@ -639,109 +653,94 @@ if (chatMessageInput) {
 }
 
 
-// =========================
-// Auth
-// =========================
+// ==================================================
+// Authentication
+// ==================================================
 
 if (loginForm) {
 
     loginForm.addEventListener(
         "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            const username =
-                document.getElementById(
-                    "login-username"
-                ).value;
+        handleLogin
+    );
+}
 
 
-            const password =
-                document.getElementById(
-                    "login-password"
-                ).value;
+async function handleLogin(event) {
+
+    event.preventDefault();
 
 
-            const errorElement =
-                document.getElementById(
-                    "login-error"
-                );
+    const username =
+        document.getElementById(
+            "login-username"
+        ).value;
 
 
-            const csrfToken =
-                getCsrfToken();
+    const password =
+        document.getElementById(
+            "login-password"
+        ).value;
 
 
-            if (!csrfToken) {
+    const errorElement =
+        document.getElementById(
+            "login-error"
+        );
 
-                errorElement.textContent =
-                    "Не удалось получить CSRF-токен.";
 
-                return;
-            }
+    errorElement.textContent =
+        "Выполняется вход...";
 
+
+    try {
+
+        const response =
+            await apiRequest(
+                chatConfig.loginUrl,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
+                    },
+
+                    body:
+                        new URLSearchParams({
+                            username,
+                            password,
+                        }),
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
 
             errorElement.textContent =
-                "Выполняется вход...";
+                data.error ||
+                "Ошибка входа.";
 
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.loginUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "Content-Type":
-                                    "application/x-www-form-urlencoded",
-
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-
-                            body:
-                                new URLSearchParams({
-                                    username,
-                                    password
-                                }),
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    errorElement.textContent =
-                        data.error ||
-                        "Ошибка входа";
-
-                    return;
-                }
-
-
-                window.location.reload();
-
-            } catch (error) {
-
-                console.error(
-                    "Login error:",
-                    error
-                );
-
-                errorElement.textContent =
-                    "Ошибка сети. Попробуйте позже.";
-            }
+            return;
         }
-    );
+
+
+        window.location.reload();
+
+    } catch (error) {
+
+        console.error(
+            "Login error:",
+            error
+        );
+
+        errorElement.textContent =
+            "Ошибка сети. Попробуйте позже.";
+    }
 }
 
 
@@ -749,127 +748,111 @@ if (registerForm) {
 
     registerForm.addEventListener(
         "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            const username =
-                document.getElementById(
-                    "register-username"
-                ).value;
-
-
-            const email =
-                document.getElementById(
-                    "register-email"
-                ).value;
-
-
-            const password =
-                document.getElementById(
-                    "register-password"
-                ).value;
-
-
-            const passwordConfirm =
-                document.getElementById(
-                    "register-password-confirm"
-                ).value;
-
-
-            const errorElement =
-                document.getElementById(
-                    "register-error"
-                );
-
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                errorElement.textContent =
-                    "Не удалось получить CSRF-токен.";
-
-                return;
-            }
-
-
-            errorElement.textContent =
-                "Создание аккаунта...";
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.registerUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "Content-Type":
-                                    "application/x-www-form-urlencoded",
-
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-
-                            body:
-                                new URLSearchParams({
-                                    username,
-                                    email,
-                                    password,
-                                    password_confirm:
-                                        passwordConfirm
-                                }),
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    showRegistrationErrors(
-                        data.errors ||
-                        {
-                            general: [
-                                "Ошибка регистрации"
-                            ]
-                        }
-                    );
-
-                    return;
-                }
-
-
-                window.location.reload();
-
-            } catch (error) {
-
-                console.error(
-                    "Registration error:",
-                    error
-                );
-
-                errorElement.textContent =
-                    "Ошибка сети. Попробуйте позже.";
-            }
-        }
+        handleRegistration
     );
 }
 
 
-function showRegistrationErrors(
-    errors
-) {
+async function handleRegistration(event) {
+
+    event.preventDefault();
+
+
+    const username =
+        document.getElementById(
+            "register-username"
+        ).value;
+
+
+    const email =
+        document.getElementById(
+            "register-email"
+        ).value;
+
+
+    const password =
+        document.getElementById(
+            "register-password"
+        ).value;
+
+
+    const passwordConfirm =
+        document.getElementById(
+            "register-password-confirm"
+        ).value;
+
+
+    const errorElement =
+        document.getElementById(
+            "register-error"
+        );
+
+
+    errorElement.textContent =
+        "Создание аккаунта...";
+
+
+    try {
+
+        const response =
+            await apiRequest(
+                chatConfig.registerUrl,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/x-www-form-urlencoded",
+                    },
+
+                    body:
+                        new URLSearchParams({
+                            username,
+                            email,
+                            password,
+                            password_confirm:
+                                passwordConfirm,
+                        }),
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            showRegistrationErrors(
+                data.errors
+                ||
+                {
+                    general: [
+                        "Ошибка регистрации",
+                    ],
+                }
+            );
+
+            return;
+        }
+
+
+        window.location.reload();
+
+    } catch (error) {
+
+        console.error(
+            "Registration error:",
+            error
+        );
+
+        errorElement.textContent =
+            "Ошибка сети. Попробуйте позже.";
+    }
+}
+
+
+function showRegistrationErrors(errors) {
 
     const errorElement =
         document.getElementById(
@@ -882,49 +865,14 @@ function showRegistrationErrors(
     }
 
 
-    const messages = [];
-
-
-    for (
-        const field in errors
-    ) {
-
-        const fieldErrors =
-            errors[field];
-
-
-        if (
-            Array.isArray(fieldErrors)
-        ) {
-
-            fieldErrors.forEach(
-                function (error) {
-
-                    messages.push(
-                        typeof error === "object"
-                            ? error.message
-                            : error
-                    );
-                }
-            );
-
-        } else {
-
-            messages.push(
-                fieldErrors
-            );
-        }
-    }
-
-
     errorElement.textContent =
-        messages.join(" • ");
+        extractFormErrors(errors);
 }
 
 
-// =========================
-// Auth modal switching
-// =========================
+// ==================================================
+// Authentication modal switching
+// ==================================================
 
 if (showRegisterButton) {
 
@@ -932,25 +880,23 @@ if (showRegisterButton) {
         "click",
         function () {
 
-            if (loginContainer) {
-
-                loginContainer.classList.add(
-                    "hidden"
-                );
-            }
-
-
-            if (registerContainer) {
-
-                registerContainer.classList.remove(
-                    "hidden"
-                );
-            }
-
-
-            clearElementError(
-                "register-error"
+            loginContainer?.classList.add(
+                "hidden"
             );
+
+            registerContainer?.classList.remove(
+                "hidden"
+            );
+
+
+            const error =
+                document.getElementById(
+                    "register-error"
+                );
+
+            if (error) {
+                error.textContent = "";
+            }
         }
     );
 }
@@ -962,33 +908,49 @@ if (showLoginButton) {
         "click",
         function () {
 
-            if (registerContainer) {
-
-                registerContainer.classList.add(
-                    "hidden"
-                );
-            }
-
-
-            if (loginContainer) {
-
-                loginContainer.classList.remove(
-                    "hidden"
-                );
-            }
-
-
-            clearElementError(
-                "login-error"
+            registerContainer?.classList.add(
+                "hidden"
             );
+
+            loginContainer?.classList.remove(
+                "hidden"
+            );
+
+
+            const error =
+                document.getElementById(
+                    "login-error"
+                );
+
+            if (error) {
+                error.textContent = "";
+            }
         }
     );
 }
 
 
-// =========================
-// User Menu
-// =========================
+// ==================================================
+// User menu
+// ==================================================
+
+const userMenuButton =
+    document.getElementById(
+        "user-menu-button"
+    );
+
+
+const userMenuDropdown =
+    document.getElementById(
+        "user-menu-dropdown"
+    );
+
+
+const logoutButton =
+    document.getElementById(
+        "logout-button"
+    );
+
 
 if (userMenuButton) {
 
@@ -998,29 +960,88 @@ if (userMenuButton) {
 
             event.stopPropagation();
 
-
-            if (roomMenuDropdown) {
-
-                roomMenuDropdown.classList.add(
-                    "hidden"
-                );
-            }
-
-
-            if (userMenuDropdown) {
-
-                userMenuDropdown.classList.toggle(
-                    "hidden"
-                );
-            }
+            userMenuDropdown?.classList.toggle(
+                "hidden"
+            );
         }
     );
 }
 
 
-// =========================
-// Room Menu
-// =========================
+if (logoutButton) {
+
+    logoutButton.addEventListener(
+        "click",
+        handleLogout
+    );
+}
+
+
+async function handleLogout() {
+
+    shouldReconnect = false;
+
+    clearTimeout(
+        reconnectTimeout
+    );
+
+
+    if (chatSocket) {
+
+        chatSocket.onclose = null;
+
+        chatSocket.close();
+    }
+
+
+    try {
+
+        const response =
+            await apiRequest(
+                chatConfig.logoutUrl,
+                {
+                    method: "POST",
+                }
+            );
+
+
+        if (response.ok) {
+
+            window.location.reload();
+
+        } else {
+
+            console.error(
+                "Logout failed:",
+                response.status
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Logout error:",
+            error
+        );
+    }
+}
+
+
+// ==================================================
+// Room menu
+// ==================================================
+
+const roomMenuButton =
+    document.getElementById(
+        "room-menu-button"
+    );
+
+
+const roomMenuDropdown =
+    document.getElementById(
+        "room-menu-dropdown"
+    );
+
 
 if (roomMenuButton) {
 
@@ -1031,172 +1052,221 @@ if (roomMenuButton) {
             event.stopPropagation();
 
 
-            if (userMenuDropdown) {
-
-                userMenuDropdown.classList.add(
-                    "hidden"
-                );
-            }
+            userMenuDropdown?.classList.add(
+                "hidden"
+            );
 
 
-            if (roomMenuDropdown) {
-
-                roomMenuDropdown.classList.toggle(
-                    "hidden"
-                );
-            }
+            roomMenuDropdown?.classList.toggle(
+                "hidden"
+            );
         }
     );
 }
 
 
-// =========================
-// Close menus on document click
-// =========================
+// ==================================================
+// Global menu closing
+// ==================================================
 
 document.addEventListener(
     "click",
     function () {
 
-        if (userMenuDropdown) {
+        userMenuDropdown?.classList.add(
+            "hidden"
+        );
 
-            userMenuDropdown.classList.add(
-                "hidden"
-            );
-        }
-
-
-        if (roomMenuDropdown) {
-
-            roomMenuDropdown.classList.add(
-                "hidden"
-            );
-        }
+        roomMenuDropdown?.classList.add(
+            "hidden"
+        );
     }
 );
 
 
-// Prevent clicks inside dropdowns
-// from bubbling to document.
+// ==================================================
+// Create room
+// ==================================================
 
-if (userMenuDropdown) {
+const createRoomButton =
+    document.getElementById(
+        "create-room-button"
+    );
 
-    userMenuDropdown.addEventListener(
+
+const createRoomModal =
+    document.getElementById(
+        "create-room-modal"
+    );
+
+
+const createRoomForm =
+    document.getElementById(
+        "create-room-form"
+    );
+
+
+const createRoomError =
+    document.getElementById(
+        "create-room-error"
+    );
+
+
+if (createRoomButton) {
+
+    createRoomButton.addEventListener(
         "click",
-        function (event) {
+        function () {
 
-            event.stopPropagation();
+            createRoomForm?.reset();
+
+            clearModalError(
+                createRoomError
+            );
+
+            openModal(
+                createRoomModal
+            );
         }
     );
 }
 
 
-if (roomMenuDropdown) {
+if (createRoomForm) {
 
-    roomMenuDropdown.addEventListener(
-        "click",
-        function (event) {
-
-            event.stopPropagation();
-        }
+    createRoomForm.addEventListener(
+        "submit",
+        handleCreateRoom
     );
 }
 
 
-// =========================
-// Logout
-// =========================
+async function handleCreateRoom(event) {
 
-if (logoutButton) {
-
-    logoutButton.addEventListener(
-        "click",
-        async function () {
-
-            const csrfToken =
-                getCsrfToken();
+    event.preventDefault();
 
 
-            if (!csrfToken) {
-
-                alert(
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
+    clearModalError(
+        createRoomError
+    );
 
 
-            shouldReconnect = false;
+    const submitButton =
+        createRoomForm.querySelector(
+            "button[type=submit]"
+        );
 
 
-            if (reconnectTimer) {
+    submitButton.disabled = true;
 
-                clearTimeout(
-                    reconnectTimer
-                );
-
-                reconnectTimer = null;
-            }
+    submitButton.textContent =
+        "Создание...";
 
 
-            if (chatSocket) {
+    try {
 
-                chatSocket.onclose = null;
+        const response =
+            await apiRequest(
+                chatConfig.createRoomUrl,
+                {
+                    method: "POST",
 
-                chatSocket.close();
-
-                chatSocket = null;
-            }
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.logoutUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-                        }
-                    );
-
-
-                if (response.ok) {
-
-                    window.location.reload();
-
-                    return;
+                    body:
+                        new FormData(
+                            createRoomForm
+                        ),
                 }
+            );
 
 
-                alert(
-                    "Не удалось выполнить выход."
-                );
+        const data =
+            await response.json();
 
-            } catch (error) {
 
-                console.error(
-                    "Logout error:",
-                    error
-                );
+        if (!response.ok) {
 
-                alert(
-                    "Ошибка сети. Попробуйте позже."
-                );
-            }
+            showModalError(
+                createRoomError,
+                extractFormErrors(
+                    data.errors
+                )
+                ||
+                data.error
+                ||
+                "Не удалось создать комнату."
+            );
+
+            return;
         }
-    );
+
+
+        closeModal(
+            createRoomModal
+        );
+
+
+        const roomUrl =
+            chatConfig.roomUrlTemplate
+                .replace(
+                    "ROOM_NAME",
+                    encodeURIComponent(
+                        data.room.name
+                    )
+                );
+
+
+        window.location.href =
+            roomUrl;
+
+    } catch (error) {
+
+        console.error(
+            "Create room error:",
+            error
+        );
+
+        showModalError(
+            createRoomError,
+            "Ошибка сети. Попробуйте позже."
+        );
+
+    } finally {
+
+        submitButton.disabled = false;
+
+        submitButton.textContent =
+            "Создать";
+    }
 }
 
 
-// =========================
-// Edit Room
-// =========================
+// ==================================================
+// Edit room
+// ==================================================
+
+const editRoomButton =
+    document.getElementById(
+        "edit-room-button"
+    );
+
+
+const editRoomModal =
+    document.getElementById(
+        "edit-room-modal"
+    );
+
+
+const editRoomForm =
+    document.getElementById(
+        "edit-room-form"
+    );
+
+
+const editRoomError =
+    document.getElementById(
+        "edit-room-error"
+    );
+
 
 if (editRoomButton) {
 
@@ -1204,18 +1274,13 @@ if (editRoomButton) {
         "click",
         function () {
 
-            if (roomMenuDropdown) {
-
-                roomMenuDropdown.classList.add(
-                    "hidden"
-                );
-            }
-
+            roomMenuDropdown?.classList.add(
+                "hidden"
+            );
 
             clearModalError(
                 editRoomError
             );
-
 
             openModal(
                 editRoomModal
@@ -1229,135 +1294,112 @@ if (editRoomForm) {
 
     editRoomForm.addEventListener(
         "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            clearModalError(
-                editRoomError
-            );
-
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                showModalError(
-                    editRoomError,
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
-
-
-            const formData =
-                new FormData(
-                    editRoomForm
-                );
-
-
-            const submitButton =
-                editRoomForm.querySelector(
-                    "button[type=submit]"
-                );
-
-
-            setSubmitButtonState(
-                submitButton,
-                true,
-                "Сохранение..."
-            );
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.updateRoomUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-
-                            body: formData,
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    showModalError(
-                        editRoomError,
-                        extractFormErrors(
-                            data.errors
-                        ) ||
-                        data.error ||
-                        "Не удалось изменить комнату."
-                    );
-
-                    return;
-                }
-
-
-                updateRoomInterface(
-                    data.room
-                );
-
-
-                closeModal(
-                    editRoomModal
-                );
-
-
-                const roomUrl =
-                    chatConfig.roomUrlTemplate
-                        .replace(
-                            "ROOM_NAME",
-                            encodeURIComponent(
-                                data.room.name
-                            )
-                        );
-
-
-                window.location.href =
-                    roomUrl;
-
-            } catch (error) {
-
-                console.error(
-                    "Update room error:",
-                    error
-                );
-
-
-                showModalError(
-                    editRoomError,
-                    "Ошибка сети. Попробуйте позже."
-                );
-
-            } finally {
-
-                setSubmitButtonState(
-                    submitButton,
-                    false,
-                    "Сохранить"
-                );
-            }
-        }
+        handleEditRoom
     );
+}
+
+
+async function handleEditRoom(event) {
+
+    event.preventDefault();
+
+
+    clearModalError(
+        editRoomError
+    );
+
+
+    const submitButton =
+        editRoomForm.querySelector(
+            "button[type=submit]"
+        );
+
+
+    submitButton.disabled = true;
+
+    submitButton.textContent =
+        "Сохранение...";
+
+
+    try {
+
+        const response =
+            await apiRequest(
+                chatConfig.updateRoomUrl,
+                {
+                    method: "POST",
+
+                    body:
+                        new FormData(
+                            editRoomForm
+                        ),
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            showModalError(
+                editRoomError,
+                extractFormErrors(
+                    data.errors
+                )
+                ||
+                data.error
+                ||
+                "Не удалось изменить комнату."
+            );
+
+            return;
+        }
+
+
+        updateRoomInterface(
+            data.room
+        );
+
+
+        closeModal(
+            editRoomModal
+        );
+
+
+        const roomUrl =
+            chatConfig.roomUrlTemplate
+                .replace(
+                    "ROOM_NAME",
+                    encodeURIComponent(
+                        data.room.name
+                    )
+                );
+
+
+        window.location.href =
+            roomUrl;
+
+    } catch (error) {
+
+        console.error(
+            "Update room error:",
+            error
+        );
+
+        showModalError(
+            editRoomError,
+            "Ошибка сети. Попробуйте позже."
+        );
+
+    } finally {
+
+        submitButton.disabled = false;
+
+        submitButton.textContent =
+            "Сохранить";
+    }
 }
 
 
@@ -1368,10 +1410,12 @@ function updateRoomInterface(room) {
             "room-title-name"
         );
 
+
     const menuName =
         document.getElementById(
             "room-menu-name"
         );
+
 
     const description =
         document.getElementById(
@@ -1380,14 +1424,12 @@ function updateRoomInterface(room) {
 
 
     if (title) {
-
         title.textContent =
             room.name;
     }
 
 
     if (menuName) {
-
         menuName.textContent =
             room.name;
     }
@@ -1396,7 +1438,8 @@ function updateRoomInterface(room) {
     if (description) {
 
         description.textContent =
-            room.description ||
+            room.description
+            ||
             "Без описания";
     }
 
@@ -1438,17 +1481,13 @@ function updateRoomAvatar(
         const image =
             document.createElement("img");
 
-
         image.src =
             room.avatar;
 
         image.alt =
             room.name;
 
-
-        element.appendChild(
-            image
-        );
+        element.appendChild(image);
 
     } else {
 
@@ -1460,9 +1499,318 @@ function updateRoomAvatar(
 }
 
 
-// =========================
-// Remove Room Member
-// =========================
+// ==================================================
+// Add member
+// ==================================================
+
+const addMemberButton =
+    document.getElementById(
+        "add-member-button"
+    );
+
+
+const addMemberModal =
+    document.getElementById(
+        "add-member-modal"
+    );
+
+
+const addMemberForm =
+    document.getElementById(
+        "add-member-form"
+    );
+
+
+const addMemberError =
+    document.getElementById(
+        "add-member-error"
+    );
+
+
+if (addMemberButton) {
+
+    addMemberButton.addEventListener(
+        "click",
+        function () {
+
+            clearModalError(
+                addMemberError
+            );
+
+            openModal(
+                addMemberModal
+            );
+        }
+    );
+}
+
+
+if (addMemberForm) {
+
+    addMemberForm.addEventListener(
+        "submit",
+        handleAddMember
+    );
+}
+
+
+async function handleAddMember(event) {
+
+    event.preventDefault();
+
+
+    clearModalError(
+        addMemberError
+    );
+
+
+    const submitButton =
+        addMemberForm.querySelector(
+            "button[type=submit]"
+        );
+
+
+    submitButton.disabled = true;
+
+    submitButton.textContent =
+        "Добавление...";
+
+
+    try {
+
+        const response =
+            await apiRequest(
+                chatConfig.addMemberUrl,
+                {
+                    method: "POST",
+
+                    body:
+                        new FormData(
+                            addMemberForm
+                        ),
+                }
+            );
+
+
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            showModalError(
+                addMemberError,
+                extractFormErrors(
+                    data.errors
+                )
+                ||
+                data.error
+                ||
+                "Не удалось добавить участника."
+            );
+
+            return;
+        }
+
+
+        addMemberToMenu(
+            data.member
+        );
+
+
+        removeUserFromAvailableList(
+            data.member.id
+        );
+
+
+        addMemberForm.reset();
+
+
+        closeModal(
+            addMemberModal
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Add member error:",
+            error
+        );
+
+        showModalError(
+            addMemberError,
+            "Ошибка сети. Попробуйте позже."
+        );
+
+    } finally {
+
+        submitButton.disabled = false;
+
+        submitButton.textContent =
+            "Добавить";
+    }
+}
+
+
+function addMemberToMenu(member) {
+
+    const list =
+        document.getElementById(
+            "room-members-list"
+        );
+
+
+    if (!list) {
+        return;
+    }
+
+
+    const element =
+        document.createElement("div");
+
+    element.classList.add(
+        "room-member"
+    );
+
+
+    element.dataset.userId =
+        member.id;
+
+    element.dataset.username =
+        member.username;
+
+
+    const avatar =
+        document.createElement("div");
+
+    avatar.classList.add(
+        "room-member-avatar"
+    );
+
+
+    if (member.avatar) {
+
+        const image =
+            document.createElement("img");
+
+        image.src =
+            member.avatar;
+
+        image.alt =
+            member.username;
+
+        avatar.appendChild(image);
+
+    } else {
+
+        avatar.textContent =
+            member.username
+                .charAt(0)
+                .toUpperCase();
+    }
+
+
+    const status =
+        document.createElement("span");
+
+    status.classList.add(
+        "participant-status"
+    );
+
+
+    const username =
+        document.createElement("span");
+
+    username.classList.add(
+        "room-member-name"
+    );
+
+    username.textContent =
+        member.username;
+
+
+    element.appendChild(avatar);
+    element.appendChild(status);
+    element.appendChild(username);
+
+
+    if (chatConfig.isRoomOwner) {
+
+        const removeButton =
+            document.createElement("button");
+
+        removeButton.type = "button";
+
+        removeButton.classList.add(
+            "remove-member-button"
+        );
+
+        removeButton.dataset.userId =
+            member.id;
+
+        removeButton.title =
+            "Удалить участника";
+
+        removeButton.textContent =
+            "×";
+
+
+        removeButton.addEventListener(
+            "click",
+            function () {
+
+                removeRoomMember(
+                    member.id,
+                    member.username,
+                    element
+                );
+            }
+        );
+
+
+        element.appendChild(
+            removeButton
+        );
+    }
+
+
+    list.appendChild(
+        element
+    );
+
+
+    updateRoomMembersCount();
+}
+
+
+function removeUserFromAvailableList(
+    userId
+) {
+
+    const select =
+        document.getElementById(
+            "add-member-user"
+        );
+
+
+    if (!select) {
+        return;
+    }
+
+
+    const option =
+        select.querySelector(
+            `option[value="${userId}"]`
+        );
+
+
+    option?.remove();
+}
+
+
+// ==================================================
+// Remove member
+// ==================================================
 
 document
     .querySelectorAll(
@@ -1525,40 +1873,19 @@ async function removeRoomMember(
     }
 
 
-    const csrfToken =
-        getCsrfToken();
-
-
-    if (!csrfToken) {
-
-        alert(
-            "Не удалось получить CSRF-токен."
-        );
-
-        return;
-    }
-
-
     try {
 
         const response =
-            await fetch(
+            await apiRequest(
                 `/chat/rooms/${chatConfig.roomId}/members/${userId}/remove/`,
                 {
                     method: "POST",
-
-                    headers: {
-                        "X-CSRFToken":
-                            csrfToken,
-                    },
                 }
             );
 
 
         const data =
-            await parseJsonResponse(
-                response
-            );
+            await response.json();
 
 
         if (!response.ok) {
@@ -1572,11 +1899,7 @@ async function removeRoomMember(
         }
 
 
-        if (element) {
-
-            element.remove();
-        }
-
+        element.remove();
 
         updateRoomMembersCount();
 
@@ -1587,7 +1910,6 @@ async function removeRoomMember(
             error
         );
 
-
         alert(
             "Ошибка сети. Попробуйте позже."
         );
@@ -1595,937 +1917,188 @@ async function removeRoomMember(
 }
 
 
-// =========================
-// Leave Room
-// =========================
+// ==================================================
+// Join room
+// ==================================================
 
-if (leaveRoomButton) {
-
-    leaveRoomButton.addEventListener(
-        "click",
-        async function () {
-
-            const confirmed =
-                confirm(
-                    "Вы действительно хотите покинуть этот чат?"
-                );
-
-
-            if (!confirmed) {
-                return;
-            }
-
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                alert(
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
-
-
-            leaveRoomButton.disabled =
-                true;
-
-            leaveRoomButton.textContent =
-                "Выход...";
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.leaveRoomUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    alert(
-                        data.error ||
-                        "Не удалось покинуть чат."
-                    );
-
-                    return;
-                }
-
-
-                shouldReconnect = false;
-
-
-                if (reconnectTimer) {
-
-                    clearTimeout(
-                        reconnectTimer
-                    );
-
-                    reconnectTimer = null;
-                }
-
-
-                if (chatSocket) {
-
-                    chatSocket.onclose = null;
-
-                    chatSocket.close();
-
-                    chatSocket = null;
-                }
-
-
-                window.location.href =
-                    data.redirect_url;
-
-            } catch (error) {
-
-                console.error(
-                    "Leave room error:",
-                    error
-                );
-
-
-                alert(
-                    "Ошибка сети. Попробуйте позже."
-                );
-
-            } finally {
-
-                leaveRoomButton.disabled =
-                    false;
-
-                leaveRoomButton.textContent =
-                    "🚪 Покинуть чат";
-            }
-        }
+const joinRoomButton =
+    document.getElementById(
+        "join-room-button"
     );
-}
 
-
-// =========================
-// Join Room
-// =========================
 
 if (joinRoomButton) {
 
     joinRoomButton.addEventListener(
         "click",
-        async function () {
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                alert(
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
-
-
-            joinRoomButton.disabled =
-                true;
-
-            joinRoomButton.textContent =
-                "Вступление...";
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.joinRoomUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    alert(
-                        data.error ||
-                        "Не удалось вступить в комнату."
-                    );
-
-                    return;
-                }
-
-
-                window.location.reload();
-
-            } catch (error) {
-
-                console.error(
-                    "Join room error:",
-                    error
-                );
-
-
-                alert(
-                    "Ошибка сети. Попробуйте позже."
-                );
-
-            } finally {
-
-                joinRoomButton.disabled =
-                    false;
-
-                joinRoomButton.textContent =
-                    "Вступить в комнату";
-            }
-        }
+        handleJoinRoom
     );
 }
 
 
-// =========================
-// Add Member
-// =========================
+async function handleJoinRoom() {
 
-if (addMemberButton) {
+    joinRoomButton.disabled = true;
 
-    addMemberButton.addEventListener(
-        "click",
-        function () {
+    joinRoomButton.textContent =
+        "Вступление...";
 
-            clearModalError(
-                addMemberError
-            );
-
-
-            openModal(
-                addMemberModal
-            );
-        }
-    );
-}
-
-
-if (addMemberForm) {
-
-    addMemberForm.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            clearModalError(
-                addMemberError
-            );
-
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                showModalError(
-                    addMemberError,
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
-
-
-            const formData =
-                new FormData(
-                    addMemberForm
-                );
-
-
-            const submitButton =
-                addMemberForm.querySelector(
-                    "button[type=submit]"
-                );
-
-
-            setSubmitButtonState(
-                submitButton,
-                true,
-                "Добавление..."
-            );
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.addMemberUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-
-                            body: formData,
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    showModalError(
-                        addMemberError,
-                        extractFormErrors(
-                            data.errors
-                        ) ||
-                        data.error ||
-                        "Не удалось добавить участника."
-                    );
-
-                    return;
-                }
-
-
-                addMemberToMenu(
-                    data.member
-                );
-
-
-                removeUserFromAvailableList(
-                    data.member.id
-                );
-
-
-                addMemberForm.reset();
-
-
-                closeModal(
-                    addMemberModal
-                );
-
-            } catch (error) {
-
-                console.error(
-                    "Add member error:",
-                    error
-                );
-
-
-                showModalError(
-                    addMemberError,
-                    "Ошибка сети. Попробуйте позже."
-                );
-
-            } finally {
-
-                setSubmitButtonState(
-                    submitButton,
-                    false,
-                    "Добавить"
-                );
-            }
-        }
-    );
-}
-
-
-// =========================
-// Create Room
-// =========================
-
-if (createRoomButton) {
-
-    createRoomButton.addEventListener(
-        "click",
-        function () {
-
-            if (createRoomForm) {
-
-                createRoomForm.reset();
-            }
-
-
-            clearModalError(
-                createRoomError
-            );
-
-
-            openModal(
-                createRoomModal
-            );
-        }
-    );
-}
-
-
-if (createRoomForm) {
-
-    createRoomForm.addEventListener(
-        "submit",
-        async function (event) {
-
-            event.preventDefault();
-
-
-            clearModalError(
-                createRoomError
-            );
-
-
-            const csrfToken =
-                getCsrfToken();
-
-
-            if (!csrfToken) {
-
-                showModalError(
-                    createRoomError,
-                    "Не удалось получить CSRF-токен."
-                );
-
-                return;
-            }
-
-
-            const formData =
-                new FormData(
-                    createRoomForm
-                );
-
-
-            const submitButton =
-                createRoomForm.querySelector(
-                    "button[type=submit]"
-                );
-
-
-            setSubmitButtonState(
-                submitButton,
-                true,
-                "Создание..."
-            );
-
-
-            try {
-
-                const response =
-                    await fetch(
-                        chatConfig.createRoomUrl,
-                        {
-                            method: "POST",
-
-                            headers: {
-                                "X-CSRFToken":
-                                    csrfToken,
-                            },
-
-                            body: formData,
-                        }
-                    );
-
-
-                const data =
-                    await parseJsonResponse(
-                        response
-                    );
-
-
-                if (!response.ok) {
-
-                    showModalError(
-                        createRoomError,
-                        extractFormErrors(
-                            data.errors
-                        ) ||
-                        data.error ||
-                        "Не удалось создать комнату."
-                    );
-
-                    return;
-                }
-
-
-                closeModal(
-                    createRoomModal
-                );
-
-
-                const roomUrl =
-                    chatConfig.roomUrlTemplate
-                        .replace(
-                            "ROOM_NAME",
-                            encodeURIComponent(
-                                data.room.name
-                            )
-                        );
-
-
-                window.location.href =
-                    roomUrl;
-
-            } catch (error) {
-
-                console.error(
-                    "Create room error:",
-                    error
-                );
-
-
-                showModalError(
-                    createRoomError,
-                    "Ошибка сети. Попробуйте позже."
-                );
-
-            } finally {
-
-                setSubmitButtonState(
-                    submitButton,
-                    false,
-                    "Создать"
-                );
-            }
-        }
-    );
-}
-
-
-// =========================
-// Modal helpers
-// =========================
-
-function openModal(modal) {
-
-    if (!modal) {
-        return;
-    }
-
-
-    modal.classList.remove(
-        "hidden"
-    );
-}
-
-
-function closeModal(modal) {
-
-    if (!modal) {
-        return;
-    }
-
-
-    modal.classList.add(
-        "hidden"
-    );
-}
-
-
-function showModalError(
-    element,
-    message
-) {
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        message;
-
-
-    element.classList.remove(
-        "hidden"
-    );
-}
-
-
-function clearModalError(
-    element
-) {
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent = "";
-
-
-    element.classList.add(
-        "hidden"
-    );
-}
-
-
-function clearElementError(
-    elementId
-) {
-
-    const element =
-        document.getElementById(
-            elementId
-        );
-
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent = "";
-}
-
-
-// =========================
-// Form helpers
-// =========================
-
-function getCsrfToken() {
-
-    const tokenElement =
-        document.querySelector(
-            "[name=csrfmiddlewaretoken]"
-        );
-
-
-    return tokenElement
-        ? tokenElement.value
-        : null;
-}
-
-
-async function parseJsonResponse(
-    response
-) {
 
     try {
 
-        return await response.json();
-
-    } catch (error) {
-
-        return {};
-    }
-}
-
-
-function setSubmitButtonState(
-    button,
-    disabled,
-    text
-) {
-
-    if (!button) {
-        return;
-    }
-
-
-    button.disabled =
-        disabled;
-
-    button.textContent =
-        text;
-}
-
-
-// =========================
-// Form errors
-// =========================
-
-function extractFormErrors(
-    errors
-) {
-
-    if (!errors) {
-        return "";
-    }
-
-
-    const messages = [];
-
-
-    for (
-        const field in errors
-    ) {
-
-        const fieldErrors =
-            errors[field];
-
-
-        if (
-            Array.isArray(fieldErrors)
-        ) {
-
-            fieldErrors.forEach(
-                function (error) {
-
-                    messages.push(
-                        typeof error === "object"
-                            ? error.message
-                            : error
-                    );
+        const response =
+            await apiRequest(
+                chatConfig.joinRoomUrl,
+                {
+                    method: "POST",
                 }
             );
 
-        } else {
 
-            messages.push(
-                fieldErrors
+        const data =
+            await response.json();
+
+
+        if (!response.ok) {
+
+            alert(
+                data.error ||
+                "Не удалось вступить в комнату."
             );
+
+            return;
         }
+
+
+        window.location.reload();
+
+    } catch (error) {
+
+        console.error(
+            "Join room error:",
+            error
+        );
+
+        alert(
+            "Ошибка сети. Попробуйте позже."
+        );
+
+    } finally {
+
+        joinRoomButton.disabled = false;
+
+        joinRoomButton.textContent =
+            "Вступить в комнату";
     }
+}
 
 
-    return messages.join(
-        " • "
+// ==================================================
+// Leave room
+// ==================================================
+
+const leaveRoomButton =
+    document.getElementById(
+        "leave-room-button"
+    );
+
+
+if (leaveRoomButton) {
+
+    leaveRoomButton.addEventListener(
+        "click",
+        handleLeaveRoom
     );
 }
 
 
-// =========================
-// Add member to menu
-// =========================
+async function handleLeaveRoom() {
 
-function addMemberToMenu(
-    member
-) {
-
-    const list =
-        document.getElementById(
-            "room-members-list"
+    const confirmed =
+        confirm(
+            "Вы действительно хотите покинуть этот чат?"
         );
 
 
-    if (!list) {
+    if (!confirmed) {
         return;
     }
 
 
-    const element =
-        document.createElement(
-            "div"
-        );
+    leaveRoomButton.disabled = true;
+
+    leaveRoomButton.textContent =
+        "Выход...";
 
 
-    element.classList.add(
-        "room-member"
-    );
+    try {
 
-
-    element.dataset.userId =
-        member.id;
-
-    element.dataset.username =
-        member.username;
-
-
-    const avatar =
-        document.createElement(
-            "div"
-        );
-
-
-    avatar.classList.add(
-        "room-member-avatar"
-    );
-
-
-    if (member.avatar) {
-
-        const image =
-            document.createElement(
-                "img"
+        const response =
+            await apiRequest(
+                chatConfig.leaveRoomUrl,
+                {
+                    method: "POST",
+                }
             );
 
 
-        image.src =
-            member.avatar;
-
-        image.alt =
-            member.username;
+        const data =
+            await response.json();
 
 
-        avatar.appendChild(
-            image
-        );
+        if (!response.ok) {
 
-    } else {
-
-        avatar.textContent =
-            member.username
-                .charAt(0)
-                .toUpperCase();
-    }
-
-
-    const status =
-        document.createElement(
-            "span"
-        );
-
-
-    status.classList.add(
-        "participant-status"
-    );
-
-
-    const username =
-        document.createElement(
-            "span"
-        );
-
-
-    username.classList.add(
-        "room-member-name"
-    );
-
-
-    username.textContent =
-        member.username;
-
-
-    element.appendChild(
-        avatar
-    );
-
-    element.appendChild(
-        status
-    );
-
-    element.appendChild(
-        username
-    );
-
-
-    if (
-        chatConfig.isRoomOwner
-    ) {
-
-        const removeButton =
-            document.createElement(
-                "button"
+            alert(
+                data.error ||
+                "Не удалось покинуть чат."
             );
 
-
-        removeButton.type =
-            "button";
-
-        removeButton.classList.add(
-            "remove-member-button"
-        );
-
-        removeButton.dataset.userId =
-            member.id;
-
-        removeButton.title =
-            "Удалить участника";
-
-        removeButton.textContent =
-            "×";
+            return;
+        }
 
 
-        removeButton.addEventListener(
-            "click",
-            function (event) {
+        shouldReconnect = false;
 
-                event.stopPropagation();
-
-
-                removeRoomMember(
-                    member.id,
-                    member.username,
-                    element
-                );
-            }
+        clearTimeout(
+            reconnectTimeout
         );
 
 
-        element.appendChild(
-            removeButton
-        );
-    }
+        if (chatSocket) {
+
+            chatSocket.onclose = null;
+
+            chatSocket.close();
+        }
 
 
-    list.appendChild(
-        element
-    );
+        window.location.href =
+            data.redirect_url;
 
+    } catch (error) {
 
-    updateRoomMembersCount();
-}
-
-
-// =========================
-// Remove user from select
-// =========================
-
-function removeUserFromAvailableList(
-    userId
-) {
-
-    const select =
-        document.getElementById(
-            "add-member-user"
+        console.error(
+            "Leave room error:",
+            error
         );
 
-
-    if (!select) {
-        return;
-    }
-
-
-    const option =
-        select.querySelector(
-            `option[value="${userId}"]`
+        alert(
+            "Ошибка сети. Попробуйте позже."
         );
 
+    } finally {
 
-    if (option) {
+        leaveRoomButton.disabled = false;
 
-        option.remove();
+        leaveRoomButton.textContent =
+            "🚪 Покинуть чат";
     }
 }
 
 
-// =========================
-// Update member count
-// =========================
+// ==================================================
+// Room members count
+// ==================================================
 
 function updateRoomMembersCount() {
 
@@ -2573,9 +2146,9 @@ function updateRoomMembersCount() {
 }
 
 
-// =========================
-// Close modals
-// =========================
+// ==================================================
+// Modals
+// ==================================================
 
 document
     .querySelectorAll(
@@ -2604,9 +2177,7 @@ document
 
 
 document
-    .querySelectorAll(
-        ".modal"
-    )
+    .querySelectorAll(".modal")
     .forEach(
         function (modal) {
 
@@ -2638,9 +2209,7 @@ document.addEventListener(
 
 
         document
-            .querySelectorAll(
-                ".modal"
-            )
+            .querySelectorAll(".modal")
             .forEach(
                 function (modal) {
 
@@ -2660,9 +2229,21 @@ document.addEventListener(
 );
 
 
-// =========================
-// Rooms Sidebar
-// =========================
+// ==================================================
+// Rooms sidebar
+// ==================================================
+
+const roomsSidebar =
+    document.getElementById(
+        "rooms-sidebar"
+    );
+
+
+const roomsToggleButton =
+    document.getElementById(
+        "rooms-toggle-button"
+    );
+
 
 function setRoomsSidebarState(
     collapsed
@@ -2681,19 +2262,21 @@ function setRoomsSidebarState(
 
     if (roomsToggleButton) {
 
-        roomsToggleButton.setAttribute(
-            "aria-label",
+        const label =
             collapsed
                 ? "Развернуть список комнат"
-                : "Свернуть список комнат"
+                : "Свернуть список комнат";
+
+
+        roomsToggleButton.setAttribute(
+            "aria-label",
+            label
         );
 
 
         roomsToggleButton.setAttribute(
             "title",
-            collapsed
-                ? "Развернуть список комнат"
-                : "Свернуть список комнат"
+            label
         );
     }
 
@@ -2708,7 +2291,8 @@ function setRoomsSidebarState(
 
 
 if (
-    roomsSidebar &&
+    roomsSidebar
+    &&
     roomsToggleButton
 ) {
 
