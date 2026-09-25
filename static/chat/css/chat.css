@@ -1357,6 +1357,26 @@ button {
     border-bottom-left-radius: 4px;
 }
 
+/* Видео-сообщение без подписи — только кружок, без пузыря. */
+.message.video-only .message-content,
+.message.video-only.own .message-content {
+    max-width: 65%;
+
+    padding: 0;
+
+    border: none;
+
+    background: none;
+
+    box-shadow: none;
+
+    border-radius: 0;
+}
+
+.message.video-only .video-attachment {
+    margin-top: 4px;
+}
+
 
 /* =========================
    Reply quote box (внутри пузыря)
@@ -1687,6 +1707,92 @@ button {
     background: rgba(255, 255, 255, 0.05);
 
     border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Видео-сообщения выводятся КРУГОМ без рамок обёртки. */
+.message-attachment.video-attachment,
+.message.own .message-attachment.video-attachment {
+    margin-top: 8px;
+
+    overflow: visible;
+
+    background: transparent;
+
+    border: none;
+
+    border-color: transparent;
+
+    border-radius: 0;
+
+    box-shadow: none;
+}
+
+.video-message {
+    position: relative;
+
+    width: min(260px, 70vw);
+    height: min(260px, 70vw);
+
+    display: block;
+
+    overflow: hidden;
+
+    border-radius: 50%;
+
+    background: var(--bg);
+
+    cursor: pointer;
+}
+
+.video-message video {
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    object-fit: cover;
+}
+
+.video-message-play {
+    position: absolute;
+
+    inset: 0;
+
+    margin: auto;
+
+    width: 56px;
+    height: 56px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: none;
+    border-radius: 50%;
+
+    background: rgba(8, 6, 14, 0.55);
+    color: #ffffff;
+
+    font-size: 24px;
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+}
+
+.video-message-play[hidden] {
+    display: none;
+}
+
+.video-message-play:hover {
+    background: rgba(8, 6, 14, 0.7);
+
+    transform: scale(1.06);
 }
 
 .message-attachment img {
@@ -2344,6 +2450,36 @@ button {
     overflow: hidden;
 
     text-overflow: ellipsis;
+}
+
+/* Превью камеры при записи видео. */
+.chat-recording-preview {
+    width: 96px;
+    height: 96px;
+
+    flex-shrink: 0;
+
+    display: block;
+
+    overflow: hidden;
+
+    border: 2px solid var(--danger);
+    border-radius: 50%;
+
+    background: var(--bg);
+}
+
+.chat-recording-preview[hidden] {
+    display: none;
+}
+
+.chat-recording-preview video {
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    object-fit: cover;
 }
 
 .chat-input.recording {
@@ -3636,6 +3772,16 @@ button {
         height: 40px;
     }
 
+    .chat-recording-preview {
+        width: 80px;
+        height: 80px;
+    }
+
+    .video-message {
+        width: min(220px, 62vw);
+        height: min(220px, 62vw);
+    }
+
     .chat-join-prompt {
         align-items: stretch;
         flex-direction: column;
@@ -3703,6 +3849,11 @@ button {
         width: 36px;
         min-width: 36px;
         height: 36px;
+    }
+
+    .chat-recording-preview {
+        width: 68px;
+        height: 68px;
     }
 
     .chat-recording-hint {

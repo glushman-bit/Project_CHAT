@@ -664,6 +664,21 @@ function addMessage(data) {
         content
     );
 
+    // Видео-сообщение без подписи показываем
+    // только кружком, без рамки пузыря.
+    if (
+        data.attachment_type === "video"
+        &&
+        !data.message
+        &&
+        !data.reply_to
+    ) {
+
+        messageElement.classList.add(
+            "video-only"
+        );
+    }
+
 
     const isOwn =
         messageElement.classList.contains(
@@ -1559,29 +1574,17 @@ function createAttachment(
 
     } else if (type === "video") {
 
-        const video =
-            document.createElement("video");
-
-        video.src = url;
-
-        video.controls = true;
-
-        video.preload = "metadata";
-
-
-        const mediaWrap =
-            createMediaWrap();
-
-        mediaWrap.appendChild(video);
-
-        mediaWrap.appendChild(
-            createDownloadIcon(
-                url,
-                name
-            )
+        wrap.classList.add(
+            "video-attachment"
         );
 
-        wrap.appendChild(mediaWrap);
+        const circle =
+            createVideoMessage(
+                url,
+                name
+            );
+
+        wrap.appendChild(circle);
 
     } else if (type === "audio") {
 
@@ -1629,6 +1632,117 @@ function createAttachment(
 
 
     return wrap;
+}
+
+
+function createVideoMessage(
+    url,
+    name
+) {
+
+    const circle =
+        document.createElement("div");
+
+    circle.classList.add(
+        "video-message"
+    );
+
+    const video =
+        document.createElement("video");
+
+    video.src = url;
+
+    video.preload = "metadata";
+
+    video.playsInline = true;
+
+    video.muted = true;
+
+
+    const play =
+        document.createElement("button");
+
+    play.type = "button";
+
+    play.className =
+        "video-message-play";
+
+    play.setAttribute(
+        "aria-label",
+        "Воспроизвести видео"
+    );
+
+    play.title =
+        name || "Видео";
+
+    play.textContent =
+        "▶";
+
+
+    // Кнопка-оверлей видна только когда видео на паузе.
+    function syncOverlay() {
+
+        play.classList.toggle(
+            "hidden",
+            !video.paused
+        );
+    }
+
+    video.addEventListener(
+        "play",
+        syncOverlay
+    );
+
+    video.addEventListener(
+        "pause",
+        syncOverlay
+    );
+
+    video.addEventListener(
+        "ended",
+        syncOverlay
+    );
+
+    syncOverlay();
+
+
+    function togglePlay(event) {
+
+        event.stopPropagation();
+
+        if (video.paused) {
+
+            video.muted = false;
+
+            video
+                .play()
+                .catch(
+                    function () {
+                        syncOverlay();
+                    }
+                );
+
+        } else {
+
+            video.pause();
+        }
+    }
+
+    play.addEventListener(
+        "click",
+        togglePlay
+    );
+
+    video.addEventListener(
+        "click",
+        togglePlay
+    );
+
+
+    circle.appendChild(video);
+    circle.appendChild(play);
+
+    return circle;
 }
 
 
@@ -3929,7 +4043,7 @@ if (chatSelectionCancel) {
 
 
 // ==================================================
-// Voice messages (запись голосовых сообщений)
+// Voice & video messages (запись голосовых и видео)
 // ==================================================
 
 const RECORD_HOLD_MS =
@@ -3938,9 +4052,20 @@ const RECORD_HOLD_MS =
 const MAX_RECORD_MS =
     5 * 60 * 1000;
 
+const VIDEO_RECORD_HOLD_MS =
+    2000;
+
+const MAX_VIDEO_RECORD_MS =
+    60 * 1000;
+
 const chatRecordButton =
     document.getElementById(
         "chat-record-button"
+    );
+
+const chatVideoButton =
+    document.getElementById(
+        "chat-video-button"
     );
 
 
@@ -3956,6 +4081,18 @@ const chatRecordingTime =
     );
 
 
+const chatRecordingPreview =
+    document.getElementById(
+        "chat-recording-preview"
+    );
+
+
+const chatRecordingVideo =
+    document.getElementById(
+        "chat-recording-video"
+    );
+
+
 let mediaRecorder = null;
 let recordedChunks = [];
 let recordHoldTimer = null;
@@ -3963,9 +4100,12 @@ let recordHoldActive = false;
 let recordStartTime = 0;
 let recordTimerInterval = null;
 let isRecording = false;
+let recordButton = null;
+let recordKind = "audio";
 
 
-// Переключение кнопок: пусто — микрофон, есть текст — отправить.
+// Переключение кнопок: пусто — микрофон/камера,
+// есть текст — отправить.
 function updateInputMode() {
 
     const hasText =
@@ -3984,6 +4124,11 @@ function updateInputMode() {
         chatRecordButton.hidden =
             hasText;
     }
+
+    if (chatVideoButton) {
+        chatVideoButton.hidden =
+            hasText;
+    }
 }
 
 
@@ -3998,38 +4143,51 @@ function cancelRecordHold() {
 
     recordHoldActive = false;
 
-    chatRecordButton?.classList.remove(
+    recordButton?.classList.remove(
         "holding"
     );
+
+    recordButton = null;
 }
 
 
-function beginRecordHold() {
+function beginRecordHold(
+    button,
+    kind
+) {
 
     if (
         mediaBusy
         ||
         isRecording
         ||
-        !chatRecordButton
+        !button
         ||
-        chatRecordButton.hidden
+        button.hidden
     ) {
         return;
     }
 
     cancelRecordHold();
 
+    recordButton = button;
+    recordKind = kind;
+
     recordHoldActive = true;
 
-    chatRecordButton.classList.add(
+    button.classList.add(
         "holding"
     );
+
+    const holdMs =
+        kind === "video"
+            ? VIDEO_RECORD_HOLD_MS
+            : RECORD_HOLD_MS;
 
     recordHoldTimer =
         setTimeout(
             startRecording,
-            RECORD_HOLD_MS
+            holdMs
         );
 }
 
@@ -4037,6 +4195,8 @@ function beginRecordHold() {
 async function startRecording() {
 
     recordHoldTimer = null;
+
+    const kind = recordKind;
 
     if (
         !navigator.mediaDevices
@@ -4049,7 +4209,9 @@ async function startRecording() {
         cancelRecordHold();
 
         showToast(
-            "Запись аудио недоступна в этом браузере.",
+            kind === "video"
+                ? "Запись видео недоступна в этом браузере."
+                : "Запись аудио недоступна в этом браузере.",
             "error"
         );
 
@@ -4061,11 +4223,18 @@ async function startRecording() {
         const stream =
             await navigator
                 .mediaDevices
-                .getUserMedia({
-                    audio: true,
-                });
+                .getUserMedia(
+                    kind === "video"
+                        ? {
+                            video: true,
+                            audio: true,
+                        }
+                        : {
+                            audio: true,
+                        }
+                );
 
-        // Пока ждали разрешение микрофона —
+        // Пока ждали разрешение микрофона/камеры —
         // кнопку уже могли отпустить.
         if (!recordHoldActive) {
 
@@ -4082,12 +4251,24 @@ async function startRecording() {
 
         recordHoldActive = false;
 
-        chatRecordButton?.classList.remove(
+        recordButton?.classList.remove(
             "holding"
         );
 
+        // Показываем превью камеры при записи видео.
+        if (
+            kind === "video"
+            &&
+            chatRecordingVideo
+        ) {
+            chatRecordingVideo.srcObject =
+                stream;
+        }
+
         const mimeType =
-            pickAudioMimeType();
+            kind === "video"
+                ? pickVideoMimeType()
+                : pickAudioMimeType();
 
         mediaRecorder =
             new MediaRecorder(
@@ -4135,15 +4316,44 @@ async function startRecording() {
         cancelRecordHold();
 
         console.error(
-            "Mic access error:",
+            "Media access error:",
             error
         );
 
         showToast(
-            "Не удалось получить доступ к микрофону.",
+            kind === "video"
+                ? "Не удалось получить доступ к камере."
+                : "Не удалось получить доступ к микрофону.",
             "error"
         );
     }
+}
+
+
+function pickVideoMimeType() {
+
+    const candidates = [
+        "video/webm;codecs=h264,vp9,opus",
+        "video/webm;codecs=h264,opus",
+        "video/webm;codecs=vp9,opus",
+        "video/webm;codecs=vp8,opus",
+        "video/webm",
+        "video/mp4",
+        "video/ogg;codecs=theora",
+    ];
+
+    for (const type of candidates) {
+
+        if (
+            MediaRecorder.isTypeSupported(
+                type
+            )
+        ) {
+            return type;
+        }
+    }
+
+    return "";
 }
 
 
@@ -4205,6 +4415,8 @@ function finishRecording() {
 
     recordTimerInterval = null;
 
+    const kind = recordKind;
+
     const stream =
         mediaRecorder
             ? mediaRecorder.stream
@@ -4221,17 +4433,29 @@ function finishRecording() {
             );
     }
 
+    if (chatRecordingVideo) {
+        chatRecordingVideo.srcObject =
+            null;
+    }
+
     setRecordingUi(false);
 
     if (recordedChunks.length === 0) {
 
         showToast(
-            "Слишком короткое аудио.",
+            kind === "video"
+                ? "Слишком короткое видео."
+                : "Слишком короткое аудио.",
             "error"
         );
 
         return;
     }
+
+    const defaultType =
+        kind === "video"
+            ? "video/webm"
+            : "audio/webm";
 
     const blob =
         new Blob(
@@ -4240,7 +4464,7 @@ function finishRecording() {
                 type:
                     mediaRecorder
                         ? mediaRecorder.mimeType
-                        : "audio/webm",
+                        : defaultType,
             }
         );
 
@@ -4248,16 +4472,20 @@ function finishRecording() {
 
     recordedChunks = [];
 
-    sendRecordedAudio(blob);
+    sendRecordedMedia(blob);
 }
 
 
-function sendRecordedAudio(blob) {
+function sendRecordedMedia(blob) {
+
+    const kind = recordKind;
 
     if (blob.size < 200) {
 
         showToast(
-            "Слишком короткое аудио.",
+            kind === "video"
+                ? "Слишком короткое видео."
+                : "Слишком короткое аудио.",
             "error"
         );
 
@@ -4265,7 +4493,9 @@ function sendRecordedAudio(blob) {
     }
 
     const file =
-        blobToAudioFile(blob);
+        kind === "video"
+            ? blobToVideoFile(blob)
+            : blobToAudioFile(blob);
 
     setMediaBusy(true);
 
@@ -4280,12 +4510,48 @@ function sendRecordedAudio(blob) {
 
                 showToast(
                     ok
-                        ? "Голосовое сообщение отправлено"
-                        : "Не удалось отправить голосовое сообщение.",
+                        ? (
+                            kind === "video"
+                                ? "Видео сообщение отправлено"
+                                : "Голосовое сообщение отправлено"
+                        )
+                        : (
+                            kind === "video"
+                                ? "Не удалось отправить видео сообщение."
+                                : "Не удалось отправить голосовое сообщение."
+                        ),
                     ok ? "ok" : "error"
                 );
             }
         );
+}
+
+
+function blobToVideoFile(blob) {
+
+    const type =
+        blob.type || "";
+
+    let extension =
+        ".webm";
+
+    if (type.startsWith("video/mp4")) {
+        extension = ".mp4";
+
+    } else if (type.startsWith("video/ogg")) {
+        extension = ".ogv";
+    }
+
+    const name =
+        `video_message_${Date.now()}${extension}`;
+
+    return new File(
+        [blob],
+        name,
+        {
+            type: type || "video/webm",
+        }
+    );
 }
 
 
@@ -4334,7 +4600,12 @@ function updateRecordingTime() {
     const elapsed =
         Date.now() - recordStartTime;
 
-    if (elapsed >= MAX_RECORD_MS) {
+    const maxMs =
+        recordKind === "video"
+            ? MAX_VIDEO_RECORD_MS
+            : MAX_RECORD_MS;
+
+    if (elapsed >= maxMs) {
 
         stopRecording();
 
@@ -4381,6 +4652,24 @@ function setRecordingUi(active) {
         );
     }
 
+    if (chatVideoButton) {
+
+        chatVideoButton.classList.toggle(
+            "recording",
+            active
+        );
+    }
+
+    // Превью камеры видно только при записи видео.
+    if (chatRecordingPreview) {
+        chatRecordingPreview.hidden =
+            !(
+                active
+                &&
+                recordKind === "video"
+            );
+    }
+
     const chatInputElement =
         document.querySelector(
             ".chat-input"
@@ -4425,19 +4714,32 @@ function setRecordingUi(active) {
 }
 
 
-if (chatRecordButton) {
+function bindRecordHold(
+    button,
+    kind
+) {
 
-    chatRecordButton.addEventListener(
+    if (!button) {
+        return;
+    }
+
+    button.addEventListener(
         "pointerdown",
-        beginRecordHold
+        function () {
+
+            beginRecordHold(
+                button,
+                kind
+            );
+        }
     );
 
-    chatRecordButton.addEventListener(
+    button.addEventListener(
         "pointerup",
         releaseRecordButton
     );
 
-    chatRecordButton.addEventListener(
+    button.addEventListener(
         "pointercancel",
         function () {
 
@@ -4447,7 +4749,7 @@ if (chatRecordButton) {
         }
     );
 
-    chatRecordButton.addEventListener(
+    button.addEventListener(
         "pointerleave",
         function () {
 
@@ -4457,13 +4759,24 @@ if (chatRecordButton) {
         }
     );
 
-    chatRecordButton.addEventListener(
+    button.addEventListener(
         "contextmenu",
         function (event) {
             event.preventDefault();
         }
     );
 }
+
+
+bindRecordHold(
+    chatRecordButton,
+    "audio"
+);
+
+bindRecordHold(
+    chatVideoButton,
+    "video"
+);
 
 
 // Отпустили кнопку где угодно — запись завершается.
@@ -4689,6 +5002,10 @@ function setMediaBusy(busy) {
 
     if (chatRecordButton) {
         chatRecordButton.disabled = busy;
+    }
+
+    if (chatVideoButton) {
+        chatVideoButton.disabled = busy;
     }
 
     if (chatUploadSend) {
