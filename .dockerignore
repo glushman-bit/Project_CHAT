@@ -18,5 +18,7 @@ db.sqlite3-wal
 db.sqlite3-shm
 media
 staticfiles
+db
+Qwen
 
 docker-compose.yaml

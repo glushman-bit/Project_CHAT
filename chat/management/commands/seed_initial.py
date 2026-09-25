@@ -55,7 +55,7 @@ class Command(BaseCommand):
         if not ChatRoom.objects.exists():
             owner = seeded_user or User.objects.order_by("pk").first()
 
-            room = ChatRoom.objects.create(
+            ChatRoom.objects.create(
                 name="general",
                 owner=owner,
                 description="Общая комната",
