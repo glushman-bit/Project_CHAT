@@ -56,7 +56,7 @@ services:
     container_name: project-chat-nginx
     restart: unless-stopped
     ports:
-      - "8000:80"
+      - "80:80"
     depends_on:
       web:
         condition: service_healthy
