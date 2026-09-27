@@ -1,7 +1,8 @@
 services:
 
   web:
-    build: .
+#    build: .           для сборки образа с нуля
+    image: glushman/project_chat:latest
     container_name: project-chat-web
     restart: unless-stopped
     command: >
