@@ -1385,7 +1385,7 @@ class DirectMessageViewTests(TransactionTestCase):
             HTTP_HOST="localhost",
         )
 
-        room_names = [r.name for r in page.context["rooms"]]
+        room_names = [r.name for r in page.context["contacts"]]
 
         self.assertIn(room_name, room_names)
 
