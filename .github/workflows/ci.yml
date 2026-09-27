@@ -32,3 +32,6 @@ jobs:
 
       - name: Django check
         run: poetry run python manage.py check
+
+      - name: Run tests
+        run: poetry run python manage.py test chat
