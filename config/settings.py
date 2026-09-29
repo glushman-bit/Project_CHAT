@@ -65,6 +65,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'config.context_processors.build_version',
             ],
         },
     },
@@ -73,6 +74,8 @@ TEMPLATES = [
 WSGI_APPLICATION = 'config.wsgi.application'
 ASGI_APPLICATION = 'config.asgi.application'
 
+# Version
+BUILD_VERSION = os.getenv("BUILD_VERSION", "unknown")
 
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
