@@ -33,14 +33,51 @@ jobs:
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.2
+        env:
+          BUILD_VERSION: ${{ github.event.workflow_run.hed_sha }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /var/www/Project_CHAT
+            
+            SHORT_SHA=$(echo "$BUILD_VERSION" | cut -c1-7)
+            
+            if grep -q '^BUILD_VERSION=' .env; then
+              sed -i "s/^BUILD_VERSION=.*/BUILD_VERSION=$SHORT_SHA/" .env
+            else
+              echo "BUILD_VERSION=$SHORT_SHA" >> .env
+            fi
+            
             git fetch origin feature/project_chat
             git reset --hard origin/feature/project_chat
             docker compose pull
-            docker compose up -d 
+            docker compose up -d web
+            
+            for i in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' project-chat-web 2>/dev/null || true)
+              
+              echo "web health: $status"
+            
+              if [ "$status" = "healthy" ]; then
+                echo "web is healthy"
+                break
+              fi
+            
+              if [ "$status" = "unhealthy" ]; then
+                echo "web become unhealthy"
+                docker compose logs --tail=100 web
+                exit 1
+              fi
+            
+              sleep 5
+            done
+            
+            if [ "$status" != "healthy" ]; then
+              echo "web did not become healthy in time"
+              docker compose logs --tail=100 web
+              exit 1
+            fi
+            
             docker compose ps
