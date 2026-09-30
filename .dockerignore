@@ -21,4 +21,4 @@ staticfiles
 db
 Qwen
 
-docker-compose.yaml
+certbot/
