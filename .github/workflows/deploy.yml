@@ -31,6 +31,10 @@ jobs:
           push: true
           tags: glushman/project_chat:latest
 
+      - name: Show build version
+        run: |
+          echo "Workflow run SHA: ${{ github.event.workflow_run.head_sha }}
+
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.2
         env:
