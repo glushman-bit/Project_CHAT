@@ -86,7 +86,10 @@ jobs:
             fi
             
             echo "web is healthy, reloading nginx..."
-            docker compose exec -T nginx nginx -s reload
+            docker compose up -d nginx
+            
+            echo "nginx updated"
+            docker compose exec -T nginx nginx -t
             
             echo "Deployment completed successfully"
             docker compose ps
