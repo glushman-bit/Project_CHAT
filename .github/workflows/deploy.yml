@@ -33,7 +33,7 @@ jobs:
 
       - name: Show build version
         run: |
-          echo "Workflow run SHA: ${{ github.event.workflow_run.head_sha }}
+          echo "Workflow run SHA: ${{ github.event.workflow_run.head_sha }}"
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.2
