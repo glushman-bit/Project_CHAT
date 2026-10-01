@@ -13,6 +13,11 @@ from django.http import JsonResponse
 DEFAULT_LIMIT = 10
 DEFAULT_PERIOD = 300  # секунд
 
+# Восстановление пароля: 5 запросов в час с одного адреса.
+PASSWORD_RESET_LIMIT = 5
+PASSWORD_RESET_PERIOD = 3600  # секунд
+PASSWORD_RESET_LIMIT_MESSAGE = ("Слишком много запросов " "восстановления пароля. Подождите час.")
+
 
 def _client_ip(request):
     """Возвращает IP клиента (с учётом прокси-заголовков)."""
@@ -25,6 +30,35 @@ def _client_ip(request):
     return request.META.get("REMOTE_ADDR", "")
 
 
+def password_reset_key(request):
+    """Ключ кэша для лимита восстановления пароля."""
+
+    return f"password_reset:{_client_ip(request)}"
+
+
+def is_rate_limited(
+    key,
+    limit=DEFAULT_LIMIT,
+    period=DEFAULT_PERIOD,
+):
+    """Проверяет лимит и увеличивает счётчик.
+
+    `key` — строка (часть ключа кэша). Возвращает True,
+    если лимит уже исчерпан; иначе False (счётчик увеличен).
+    """
+
+    window = int(time.time()) // period
+    cache_key = f"throttle:{key}:{window}"
+    count = cache.get(cache_key, 0)
+
+    if count >= limit:
+        return True
+
+    cache.set(cache_key, count + 1, period + 10)
+
+    return False
+
+
 def rate_limit(key, limit=DEFAULT_LIMIT, period=DEFAULT_PERIOD, message=""):
     """Ограничивает число обращений к view за период.
 
@@ -34,11 +68,7 @@ def rate_limit(key, limit=DEFAULT_LIMIT, period=DEFAULT_PERIOD, message=""):
     def decorator(view):
         @wraps(view)
         def _wrapped(request, *args, **kwargs):
-            window = int(time.time()) // period
-            cache_key = f"throttle:{key(request)}:{window}"
-            count = cache.get(cache_key, 0)
-
-            if count >= limit:
+            if is_rate_limited(key(request), limit, period):
                 return JsonResponse(
                     {
                         "success": False,
@@ -47,7 +77,6 @@ def rate_limit(key, limit=DEFAULT_LIMIT, period=DEFAULT_PERIOD, message=""):
                     status=429,
                 )
 
-            cache.set(cache_key, count + 1, period + 10)
             return view(request, *args, **kwargs)
 
         return _wrapped
@@ -67,7 +96,7 @@ def throttle_login(view):
 
 
 def throttle_register(view):
-    """Лимит на регистрации: 5 в час с одного адреса."""
+    """Лимит на регистрации: 5 за час с одного адреса."""
 
     return rate_limit(
         key=lambda request: f"register:{_client_ip(request)}",

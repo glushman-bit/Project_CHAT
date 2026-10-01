@@ -111,8 +111,21 @@ docker compose up -d --build
 | `USE_REDIS_CHANNEL_LAYER` | `False` | Использовать Redis для WebSocket/кэша |
 | `USE_HTTPS` | `False` | HSTS, secure-cookies, редирект на HTTPS |
 | `EMAIL_BACKEND` | консоль | SMTP: `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST` / `EMAIL_PORT` / `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `EMAIL_USE_TLS` | — / `587` / — / — / `False` | Параметры SMTP для писем восстановления пароля |
+| `DEFAULT_FROM_EMAIL` | `EMAIL_HOST_USER` | Адрес отправителя писем |
+| `PASSWORD_RESET_TIMEOUT_HOURS` | `24` | Сколько часов действует ссылка восстановления пароля |
 | `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD` | `admin` / `admin` | Стартовый пользователь на пустой БД |
 | `DB_PATH` | `./db.sqlite3` | Путь к файлу SQLite |
+
+## Восстановление пароля
+
+Кнопка «Забыли пароль?» в окне входа ведёт на `/users/password_reset/`.
+Пользователь указывает email, письмо со ссылкой отправляется на адрес из профиля
+(неизвестный email даёт тот же ответ — без утечки информации об аккаунтах).
+
+По умолчанию `EMAIL_BACKEND` — консольный, поэтому письмо печатается в лог сервера.
+Для реальной отправки задайте SMTP-параметры в `.env` (в Docker они подхватываются
+через `env_file` автоматически). Лимит: 5 запросов письма в час с одного адреса.
 
 ## Протокол WebSocket
 

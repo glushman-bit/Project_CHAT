@@ -151,12 +151,62 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 
 
 # Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
+# https://docs.djangog.com/en/6.1/topics/email/#topic-email-configuration
 
 EMAIL_BACKEND = os.getenv(
     "EMAIL_BACKEND",
     "django.core.mail.backends.console.EmailBackend",
 )
+
+# SMTP-параметры нужны, когда EMAIL_BACKEND — smtp.EmailBackend
+# (по умолчанию письма, в т.ч. восстановление пароля,
+# выводятся в консоль).
+EMAIL_HOST = os.getenv(
+    "EMAIL_HOST",
+    "",
+)
+
+EMAIL_PORT = int(
+    os.getenv(
+        "EMAIL_PORT",
+        587,
+    )
+)
+
+EMAIL_HOST_USER = os.getenv(
+    "EMAIL_HOST_USER",
+    "",
+)
+
+EMAIL_HOST_PASSWORD = os.getenv(
+    "EMAIL_HOST_PASSWORD",
+    "",
+)
+
+EMAIL_USE_TLS = os.getenv(
+    "EMAIL_USE_TLS",
+    "False",
+) == "True"
+
+EMAIL_TIMEOUT = int(
+    os.getenv(
+        "EMAIL_TIMEOUT",
+        10,
+    )
+)
+
+DEFAULT_FROM_EMAIL = os.getenv(
+    "DEFAULT_FROM_EMAIL",
+    EMAIL_HOST_USER or "noreply@example.com",
+)
+
+# Сколько часов живёт ссылка восстановления пароля.
+PASSWORD_RESET_TIMEOUT = int(
+    os.getenv(
+        "PASSWORD_RESET_TIMEOUT_HOURS",
+        24,
+    )
+) * 3600
 
 
 AUTH_USER_MODEL = 'users.User'
