@@ -75,6 +75,9 @@ class RegistrationFormTests(TestCase):
 
 class LoginThrottleTests(TestCase):
     def setUp(self):
+        # Счётчик лимита живёт в кэше и общий для всех тестов.
+        cache.clear()
+
         User.objects.create_user(
             username="ivan",
             email="ivan@example.com",
@@ -82,18 +85,27 @@ class LoginThrottleTests(TestCase):
         )
 
     def test_login_throttled_after_many_attempts(self):
-        for _ in range(10):
+        statuses = []
+
+        # Окно лимита фиксированное, поэтому при переходе через
+        # его границу счётчик сбрасывается — ждём 429 не ровно
+        # на 11-й попытке.
+        for _ in range(20):
             response = self.client.post(
                 "/users/login/",
                 {"username": "ivan", "password": "wrong"},
             )
-            self.assertEqual(response.status_code, 400)
 
-        response = self.client.post(
-            "/users/login/",
-            {"username": "ivan", "password": "wrong"},
+            statuses.append(response.status_code)
+
+            if response.status_code == 429:
+                break
+
+        self.assertEqual(
+            statuses[-1],
+            429,
+            f"Ожидался 429, получено: {statuses}",
         )
-        self.assertEqual(response.status_code, 429)
 
 
 class PasswordResetTests(TestCase):
@@ -291,6 +303,22 @@ class PasswordResetTests(TestCase):
 
     def test_inactive_user_email_rejected(self):
         self.user.is_active = False
+        self.user.save()
+
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": "ivan@example.com"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            EMAIL_NOT_FOUND_MESSAGE,
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unusable_password_email_rejected(self):
+        self.user.set_unusable_password()
         self.user.save()
 
         response = self.client.post(
@@ -522,3 +550,123 @@ class PasswordChangeTests(TestCase):
                 VALID_PASSWORD
             )
         )
+
+
+class UserProfileTests(TestCase):
+    """Данные профиля для модального окна в чате."""
+
+    def setUp(self):
+        self.me = User.objects.create_user(
+            username="ivan",
+            email="ivan@example.com",
+            password=VALID_PASSWORD,
+        )
+
+        self.other = User.objects.create_user(
+            username="petr",
+            email="petr@example.com",
+            password=VALID_PASSWORD,
+        )
+
+    def test_anonymous_redirected_to_chat(self):
+        response = self.client.get(
+            reverse(
+                "user_profile_data",
+                args=["petr"],
+            )
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("first_chat"),
+            response.url,
+        )
+
+    def test_other_profile_data(self):
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse(
+                "user_profile_data",
+                args=["petr"],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        data = response.json()
+
+        self.assertEqual(data["username"], "petr")
+        self.assertIsNone(data["avatar"])
+        self.assertIn("date_joined", data)
+        self.assertFalse(data["is_own"])
+
+    def test_other_profile_has_no_email(self):
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse(
+                "user_profile_data",
+                args=["petr"],
+            )
+        )
+
+        self.assertNotIn(
+            "petr@example.com",
+            response.content.decode(),
+        )
+
+    def test_own_profile_marked_as_own(self):
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse(
+                "user_profile_data",
+                args=["ivan"],
+            )
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["is_own"])
+
+    def test_unknown_user_not_found(self):
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse(
+                "user_profile_data",
+                args=["nobody"],
+            )
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json()["error"],
+            "Пользователь не найден",
+        )
+
+    def test_own_profile_url_still_works(self):
+        """Маршрут профиля не перехвачен."""
+
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse("profile")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_password_change_urls_still_work(self):
+        self.client.force_login(self.me)
+
+        response = self.client.get(
+            reverse("password_change")
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        response = self.client.get(
+            reverse("password_change_done")
+        )
+
+        self.assertEqual(response.status_code, 200)

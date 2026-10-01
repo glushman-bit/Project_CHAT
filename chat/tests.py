@@ -19,6 +19,7 @@ from .models import (
     MessageReaction,
     RoomReadState,
 )
+from .utils import serialize_message
 
 User = get_user_model()
 
@@ -1706,3 +1707,98 @@ class MessageActionViewTests(TransactionTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertFalse(response.json()["success"])
+
+
+class MessageAvatarProfileLinkTests(TransactionTestCase):
+    """Клик по аватару в сообщении открывает профиль автора."""
+
+    def setUp(self):
+        self.alice = User.objects.create_user(
+            username="alice",
+            password="pass-alice-123",
+        )
+
+        self.bob = User.objects.create_user(
+            username="bob",
+            password="pass-bob-123",
+        )
+
+        self.room = ChatRoom.objects.create(
+            name="general",
+            owner=self.alice,
+        )
+
+        self.room.members.add(
+            self.alice,
+            self.bob,
+        )
+
+    def test_chat_page_has_user_profile_url_template(self):
+        self.client.force_login(self.alice)
+
+        response = self.client.get(
+            "/chat/general/",
+            HTTP_HOST="testserver",
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # В chatConfig попадает шаблон с плейсхолдером логина,
+        # реальный URL собирает JS при клике по аватару.
+        self.assertContains(
+            response,
+            reverse(
+                "user_profile_data",
+                args=["USERNAME"],
+            ),
+        )
+
+    def test_chat_page_has_profile_modal(self):
+        self.client.force_login(self.alice)
+
+        response = self.client.get(
+            "/chat/general/",
+            HTTP_HOST="testserver",
+        )
+
+        self.assertContains(
+            response,
+            'id="user-profile-modal"',
+        )
+        self.assertContains(
+            response,
+            'id="user-profile-modal-avatar"',
+        )
+
+    def test_profile_modal_hidden_on_page_load(self):
+        """Окно профиля не должно быть видно до клика по аватару."""
+
+        self.client.force_login(self.alice)
+
+        response = self.client.get(
+            "/chat/general/",
+            HTTP_HOST="testserver",
+        )
+
+        self.assertContains(
+            response,
+            'class="modal user-profile-modal hidden"',
+        )
+        self.assertContains(
+            response,
+            'class="user-profile-own-link hidden"',
+        )
+
+    def test_serialized_message_has_author_username(self):
+        message = Message.objects.create(
+            room=self.room,
+            user=self.bob,
+            text="привет",
+        )
+
+        payload = serialize_message(
+            message,
+            self.alice.id,
+        )
+
+        self.assertEqual(payload["username"], "bob")

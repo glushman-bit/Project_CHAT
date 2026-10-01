@@ -676,6 +676,31 @@ function addMessage(data) {
         );
 
 
+    // Аватар открывает модальное окно с профилем автора.
+    const avatarButton =
+        document.createElement("button");
+
+    avatarButton.type =
+        "button";
+
+    avatarButton.classList.add(
+        "message-avatar-button"
+    );
+
+    avatarButton.title =
+        `Профиль: ${data.username}`;
+
+    avatarButton.setAttribute(
+        "aria-label",
+        `Профиль: ${data.username}`
+    );
+
+    avatarButton.dataset.username =
+        data.username;
+
+    avatarButton.appendChild(avatar);
+
+
     const usernameText =
         document.createElement("span");
 
@@ -683,7 +708,7 @@ function addMessage(data) {
         data.username;
 
 
-    username.appendChild(avatar);
+    username.appendChild(avatarButton);
     username.appendChild(usernameText);
 
 
@@ -2303,6 +2328,307 @@ function createAvatar(
 
     return avatar;
 }
+
+
+function buildUserProfileUrl(
+    username
+) {
+
+    if (!username) {
+        return "";
+    }
+
+    const template =
+        chatConfig.userProfileUrlTemplate;
+
+    if (!template) {
+        return "";
+    }
+
+    return template.replace(
+        "USERNAME",
+        encodeURIComponent(username)
+    );
+}
+
+
+function formatProfileDate(
+    isoDate
+) {
+
+    if (!isoDate) {
+        return "—";
+    }
+
+    const date =
+        new Date(isoDate);
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+        return "—";
+    }
+
+    return date.toLocaleDateString(
+        "ru-RU",
+        {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+        }
+    );
+}
+
+
+function renderUserProfileAvatar(
+    container,
+    username,
+    avatarUrl
+) {
+
+    if (!container) {
+        return;
+    }
+
+    container.innerHTML = "";
+
+    if (avatarUrl) {
+
+        const image =
+            document.createElement("img");
+
+        image.src =
+            avatarUrl;
+
+        image.alt =
+            `Аватар ${username}`;
+
+        container.appendChild(image);
+
+        return;
+    }
+
+    container.textContent =
+        (username || "?")
+            .charAt(0)
+            .toUpperCase();
+}
+
+
+// Идентификатор последнего запроса профиля: показываем данные
+// только того пользователя, по которому кликнули последним.
+let userProfileRequestId = 0;
+
+
+async function openUserProfileModal(
+    username
+) {
+
+    const modal =
+        document.getElementById(
+            "user-profile-modal"
+        );
+
+    if (!modal || !username) {
+        return;
+    }
+
+    const url =
+        buildUserProfileUrl(username);
+
+    if (!url) {
+        return;
+    }
+
+    const requestId =
+        ++userProfileRequestId;
+
+    const errorElement =
+        document.getElementById(
+            "user-profile-modal-error"
+        );
+
+    const nameElement =
+        document.getElementById(
+            "user-profile-modal-name"
+        );
+
+    const usernameElement =
+        document.getElementById(
+            "user-profile-modal-username"
+        );
+
+    const joinedElement =
+        document.getElementById(
+            "user-profile-modal-joined"
+        );
+
+    const avatarElement =
+        document.getElementById(
+            "user-profile-modal-avatar"
+        );
+
+    const ownLink =
+        document.getElementById(
+            "user-profile-modal-own-link"
+        );
+
+    if (nameElement) {
+        nameElement.textContent =
+            username;
+    }
+
+    if (usernameElement) {
+        usernameElement.textContent =
+            username;
+    }
+
+    if (joinedElement) {
+        joinedElement.textContent =
+            "…";
+    }
+
+    renderUserProfileAvatar(
+        avatarElement,
+        username,
+        null
+    );
+
+    if (ownLink) {
+        ownLink.classList.add("hidden");
+    }
+
+    if (errorElement) {
+        errorElement.textContent = "";
+        errorElement.classList.add("hidden");
+    }
+
+    openModal(modal);
+
+    try {
+
+        const response =
+            await apiRequest(url);
+
+        // Ответ может быть не JSON (например, редирект на страницу
+        // чата, если сессия истекла) — тогда показываем общую ошибку.
+        let data = {};
+
+        try {
+            data = await response.json();
+        } catch {
+            data = {};
+        }
+
+        if (!response.ok || !data.username) {
+
+            throw new Error(
+                data.error
+                || "Не удалось загрузить профиль"
+            );
+        }
+
+        // Пока пользователь не открыл другой профиль.
+        if (requestId !== userProfileRequestId) {
+            return;
+        }
+
+        renderUserProfileAvatar(
+            avatarElement,
+            data.username,
+            data.avatar
+        );
+
+        if (usernameElement) {
+            usernameElement.textContent =
+                data.username;
+        }
+
+        if (joinedElement) {
+            joinedElement.textContent =
+                formatProfileDate(
+                    data.date_joined
+                );
+        }
+
+        if (data.is_own && ownLink) {
+            ownLink.classList.remove("hidden");
+        }
+
+    } catch (error) {
+
+        if (requestId !== userProfileRequestId) {
+            return;
+        }
+
+        if (joinedElement) {
+            joinedElement.textContent =
+                "—";
+        }
+
+        if (errorElement) {
+
+            errorElement.textContent =
+                error.message
+                || "Не удалось загрузить профиль";
+
+            errorElement.classList.remove(
+                "hidden"
+            );
+        }
+    }
+}
+
+
+document.addEventListener(
+    "click",
+    function (event) {
+
+        // Клик по аватару открывает профиль автора сообщения.
+        if (!(event.target instanceof Element)) {
+            return;
+        }
+
+        const avatarButton =
+            event.target.closest(
+                ".message-avatar-button"
+            );
+
+        if (!avatarButton) {
+            return;
+        }
+
+        // В режиме выделения клик по аватару выделяет сообщение,
+        // а не открывает профиль.
+        if (selectionMode) {
+
+            const messageElement =
+                avatarButton.closest(".message");
+
+            if (
+                messageElement
+                &&
+                messageElement.dataset.messageId
+            ) {
+
+                toggleMessageSelection(
+                    messageElement.dataset.messageId,
+                    messageElement
+                );
+            }
+
+            return;
+        }
+
+        event.preventDefault();
+
+        openUserProfileModal(
+            avatarButton.dataset.username
+        );
+    }
+);
 
 
 function scrollToBottom(

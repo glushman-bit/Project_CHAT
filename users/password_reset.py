@@ -5,7 +5,6 @@
 """
 
 from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 
@@ -44,21 +43,15 @@ class PasswordResetView(auth_views.PasswordResetView):
         "hours_left": _hours_left(),
     }
 
-    def email_is_known(self, email):
-        """Email принадлежит активному аккаунту?"""
-
-        return (
-            get_user_model()
-            .objects
-            .filter(
-                email__iexact=email,
-                is_active=True,
-            )
-            .exists()
+    def form_valid(self, form):
+        # Штатный get_users() учитывает is_active и пароль,
+        # пригодный для входа. В Django 6.1 он возвращает
+        # генератор, поэтому список — иначе проверка не сработает.
+        users = list(
+            form.get_users(form.cleaned_data["email"])
         )
 
-    def form_valid(self, form):
-        if not self.email_is_known(form.cleaned_data["email"]):
+        if not users:
             form.add_error(
                 "email",
                 EMAIL_NOT_FOUND_MESSAGE,

@@ -1565,6 +1565,36 @@ button {
     font-weight: 600;
 }
 
+.message-avatar-button {
+    display: inline-flex;
+
+    flex-shrink: 0;
+
+    padding: 0;
+    border: none;
+
+    background: none;
+
+    border-radius: 50%;
+
+    cursor: pointer;
+
+    transition:
+        opacity 0.15s ease,
+        transform 0.15s ease;
+}
+
+.message-avatar-button:hover {
+    opacity: 0.8;
+
+    transform: scale(1.08);
+}
+
+.message-avatar-button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .message.own .message-avatar {
     background: rgba(255, 255, 255, 0.2);
 
@@ -2983,6 +3013,118 @@ button {
     flex-direction: column;
 
     gap: 16px;
+}
+
+
+/* =========================
+   User profile (просмотр профиля)
+========================= */
+
+/* Атрибут hidden не перебивается, как у .modal с display: flex. */
+.user-profile-modal[hidden],
+.user-profile-own-link[hidden] {
+    display: none;
+}
+
+.user-profile-avatar {
+    width: 110px;
+    height: 110px;
+
+    margin: 0 auto 20px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    overflow: hidden;
+
+    border: 3px solid var(--surface);
+
+    border-radius: 50%;
+
+    background: #4a4360;
+
+    color: var(--text-muted);
+
+    font-size: 42px;
+    font-weight: 600;
+}
+
+.user-profile-avatar img {
+    width: 100%;
+    height: 100%;
+
+    display: block;
+
+    object-fit: cover;
+}
+
+.user-profile-info {
+    margin-bottom: 18px;
+
+    overflow: hidden;
+
+    border: 1px solid var(--border);
+
+    background: var(--bg);
+}
+
+.user-profile-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding: 11px 14px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+.user-profile-row:last-child {
+    border-bottom: none;
+}
+
+.user-profile-label {
+    color: var(--text-muted);
+
+    font-size: 13px;
+}
+
+.user-profile-value {
+    color: var(--text);
+
+    font-size: 14px;
+    font-weight: 600;
+
+    text-align: right;
+
+    overflow-wrap: anywhere;
+}
+
+.user-profile-own-link {
+    display: block;
+
+    margin-bottom: 12px;
+
+    padding: 11px;
+
+    background: var(--primary);
+
+    color: var(--on-primary);
+
+    font-size: 14px;
+    font-weight: 600;
+
+    text-align: center;
+
+    text-decoration: none;
+
+    transition: opacity 0.15s ease;
+}
+
+.user-profile-own-link:hover {
+    opacity: 0.9;
 }
 
 

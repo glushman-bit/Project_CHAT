@@ -1,7 +1,7 @@
 from django.urls import path
 
 from . import password_change, password_reset
-from .views import login_view, logout_view, profile, register_view
+from .views import login_view, logout_view, profile, register_view, user_profile_data
 
 urlpatterns = [
     path("login/", login_view, name="login"),
@@ -41,5 +41,12 @@ urlpatterns = [
         "profile/password/done/",
         password_change.PasswordChangeDoneView.as_view(),
         name="password_change_done",
+    ),
+
+    # Просмотр профиля пользователя по логину (JSON для модального окна).
+    path(
+        "api/profile/<str:username>/",
+        user_profile_data,
+        name="user_profile_data",
     ),
 ]

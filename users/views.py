@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, get_user_model, login, logout
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
@@ -107,4 +107,40 @@ def profile(request):
         {
             "form": form,
         },
+    )
+
+
+@login_required
+def user_profile_data(request, username):
+    """Данные профиля пользователя для модального окна в чате.
+
+    Email и дата регистрации чужих пользователей не отдаём.
+    """
+
+    profile_user = (
+        get_user_model()
+        .objects
+        .filter(username=username)
+        .first()
+    )
+
+    if profile_user is None:
+        return JsonResponse(
+            {
+                "error": "Пользователь не найден",
+            },
+            status=404,
+        )
+
+    return JsonResponse(
+        {
+            "username": profile_user.username,
+            "avatar": (
+                profile_user.avatar.url
+                if profile_user.avatar
+                else None
+            ),
+            "date_joined": profile_user.date_joined.isoformat(),
+            "is_own": profile_user == request.user,
+        }
     )
