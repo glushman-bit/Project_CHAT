@@ -40,6 +40,27 @@ const chatLog =
     document.getElementById("chat-log");
 
 
+const mediaViewerModal =
+    document.getElementById(
+        "media-viewer-modal"
+    );
+
+const mediaViewerImage =
+    document.getElementById(
+        "media-viewer-image"
+    );
+
+const mediaViewerVideo =
+    document.getElementById(
+        "media-viewer-video"
+    );
+
+const mediaViewerDownload =
+    document.getElementById(
+        "media-viewer-download"
+    );
+
+
 // ==================================================
 // Common helpers
 // ==================================================
@@ -166,6 +187,95 @@ function showModalError(
     element.textContent = message;
 
     element.classList.remove("hidden");
+}
+
+
+// Просмотр медиа в большом размере. Оригинальный файл
+// открывается по исходному URL — качество не теряется.
+function openMediaViewer(
+    url,
+    type,
+    name
+) {
+
+    if (!mediaViewerModal || !url) {
+        return;
+    }
+
+    mediaViewerImage.hidden =
+        type !== "image";
+
+    mediaViewerVideo.hidden =
+        type !== "video";
+
+    if (type === "image") {
+
+        mediaViewerImage.src = url;
+
+        mediaViewerImage.alt =
+            name || "Изображение";
+
+    } else if (type === "video") {
+
+        mediaViewerVideo.src = url;
+    }
+
+    if (mediaViewerDownload) {
+
+        mediaViewerDownload.href = url;
+
+        mediaViewerDownload.download =
+            name || "";
+    }
+
+    openModal(mediaViewerModal);
+}
+
+
+// Останавливаем видео и очищаем вложения при любом
+// способе закрытия светбокса (крестик, фон, Escape).
+function pauseMediaViewer() {
+
+    if (mediaViewerVideo) {
+
+        mediaViewerVideo.pause();
+
+        mediaViewerVideo.removeAttribute("src");
+
+        mediaViewerVideo.load();
+    }
+
+    if (mediaViewerImage) {
+
+        mediaViewerImage.removeAttribute("src");
+    }
+}
+
+if (mediaViewerModal) {
+
+    const mediaViewerObserver =
+        new MutationObserver(
+            function () {
+
+                if (
+                    !mediaViewerModal.classList.contains(
+                        "hidden"
+                    )
+                ) {
+                    return;
+                }
+
+                pauseMediaViewer();
+            }
+        );
+
+    mediaViewerObserver.observe(
+        mediaViewerModal,
+        {
+            attributes: true,
+            attributeFilter: ["class"],
+        }
+    );
 }
 
 
@@ -746,6 +856,54 @@ function addMessage(data) {
     }
 
 
+    // Разделитель даты между сообщениями разных дней.
+    const createdAt =
+        data.created_at;
+
+    if (createdAt) {
+
+        let lastMessageDay =
+            null;
+
+        // Отступаем вверх от последнего элемента ленты,
+        // пропуская системные сообщения и разделители.
+        for (
+            let element = chatLog.lastElementChild;
+            element;
+            element = element.previousElementSibling
+        ) {
+
+            if (
+                element.classList.contains("message")
+                &&
+                element.__messageData
+            ) {
+
+                lastMessageDay =
+                    element.__messageData.created_at;
+
+                break;
+            }
+        }
+
+        if (
+            !lastMessageDay
+            ||
+            !isSameDay(
+                lastMessageDay,
+                createdAt
+            )
+        ) {
+
+            chatLog.appendChild(
+                createDateDivider(
+                    createdAt
+                )
+            );
+        }
+    }
+
+
     chatLog.appendChild(
         messageElement
     );
@@ -760,6 +918,96 @@ function addMessage(data) {
         data;
 
     return true;
+}
+
+
+function isSameDay(a, b) {
+
+    const dateA =
+        new Date(a);
+
+    const dateB =
+        new Date(b);
+
+    return (
+        dateA.getFullYear() === dateB.getFullYear()
+        &&
+        dateA.getMonth() === dateB.getMonth()
+        &&
+        dateA.getDate() === dateB.getDate()
+    );
+}
+
+
+function createDateDivider(createdAt) {
+
+    const divider =
+        document.createElement("div");
+
+    divider.classList.add(
+        "date-divider"
+    );
+
+    divider.dataset.date =
+        createdAt;
+
+    const label =
+        document.createElement("span");
+
+    label.textContent =
+        formatDateLabel(
+            createdAt
+        );
+
+    divider.appendChild(label);
+
+    return divider;
+}
+
+
+function formatDateLabel(createdAt) {
+
+    const date =
+        new Date(createdAt);
+
+    const today =
+        new Date();
+
+    const yesterday =
+        new Date();
+
+    yesterday.setDate(
+        today.getDate() - 1
+    );
+
+    function startOfDay(d) {
+
+        return new Date(
+            d.getFullYear(),
+            d.getMonth(),
+            d.getDate()
+        );
+    }
+
+    const dateDay =
+        startOfDay(date).getTime();
+
+    if (dateDay === startOfDay(today).getTime()) {
+        return "Сегодня";
+    }
+
+    if (dateDay === startOfDay(yesterday).getTime()) {
+        return "Вчера";
+    }
+
+    return date.toLocaleDateString(
+        "ru-RU",
+        {
+            day: "numeric",
+            month: "long",
+            year: "numeric",
+        }
+    );
 }
 
 
@@ -1540,9 +1788,10 @@ function createAttachment(
 
         link.href = url;
 
-        link.target = "_blank";
-
         link.rel = "noopener";
+
+        link.title =
+            name || "Просмотреть изображение";
 
 
         const image =
@@ -1556,6 +1805,24 @@ function createAttachment(
         image.loading = "lazy";
 
         link.appendChild(image);
+
+        // Клик — открыть просмотр в большом размере,
+        // а не открывать новую вкладку.
+        link.addEventListener(
+            "click",
+            function (event) {
+
+                event.preventDefault();
+
+                event.stopPropagation();
+
+                openMediaViewer(
+                    url,
+                    "image",
+                    name
+                );
+            }
+        );
 
 
         const mediaWrap =
@@ -1669,7 +1936,7 @@ function createVideoMessage(
 
     play.setAttribute(
         "aria-label",
-        "Воспроизвести видео"
+        "Смотреть видео"
     );
 
     play.title =
@@ -1679,68 +1946,24 @@ function createVideoMessage(
         "▶";
 
 
-    // Кнопка-оверлей видна только когда видео на паузе.
-    function syncOverlay() {
-
-        play.classList.toggle(
-            "hidden",
-            !video.paused
-        );
-    }
-
-    video.addEventListener(
-        "play",
-        syncOverlay
-    );
-
-    video.addEventListener(
-        "pause",
-        syncOverlay
-    );
-
-    video.addEventListener(
-        "ended",
-        syncOverlay
-    );
-
-    syncOverlay();
-
-
-    function togglePlay(event) {
-
-        event.stopPropagation();
-
-        if (video.paused) {
-
-            video.muted = false;
-
-            video
-                .play()
-                .catch(
-                    function () {
-                        syncOverlay();
-                    }
-                );
-
-        } else {
-
-            video.pause();
-        }
-    }
-
-    play.addEventListener(
-        "click",
-        togglePlay
-    );
-
-    video.addEventListener(
-        "click",
-        togglePlay
-    );
-
-
     circle.appendChild(video);
     circle.appendChild(play);
+
+
+    // Клик по кружку — открыть просмотр в модальном окне.
+    circle.addEventListener(
+        "click",
+        function (event) {
+
+            event.stopPropagation();
+
+            openMediaViewer(
+                url,
+                "video",
+                name
+            );
+        }
+    );
 
     return circle;
 }
@@ -7502,13 +7725,24 @@ document
                 function (event) {
 
                     if (
-                        event.target === modal
+                        event.target !== modal
                     ) {
-
-                        closeModal(
-                            modal
-                        );
+                        return;
                     }
+
+                    // Окна входа и регистрации не закрываются
+                    // кликом вне их области — только кнопками.
+                    if (
+                        modal.id === "login-container"
+                        ||
+                        modal.id === "register-container"
+                    ) {
+                        return;
+                    }
+
+                    closeModal(
+                        modal
+                    );
                 }
             );
         }

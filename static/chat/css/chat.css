@@ -1226,6 +1226,45 @@ button {
         fadeIn 0.2s ease-out;
 }
 
+/* Разделитель даты между сообщениями разных дней. */
+.date-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    gap: 12px;
+
+    margin: 16px 0 8px;
+
+    color: var(--text-muted);
+
+    font-size: 12px;
+    font-weight: 600;
+
+    white-space: nowrap;
+}
+
+.date-divider::before,
+.date-divider::after {
+    content: "";
+
+    height: 1px;
+
+    flex: 1;
+
+    background: var(--border);
+}
+
+.date-divider span {
+    padding: 2px 12px;
+
+    border-radius: 999px;
+
+    background: var(--surface);
+
+    border: 1px solid var(--border);
+}
+
 .message-highlighted {
     animation:
         message-highlight
@@ -1805,6 +1844,8 @@ button {
     object-fit: cover;
 
     border-radius: 8px;
+
+    cursor: zoom-in;
 }
 
 .message-attachment video {
@@ -2946,6 +2987,101 @@ button {
 
 
 /* =========================
+   Media viewer (просмотр медиа)
+========================= */
+
+.media-viewer-modal {
+    padding: 0;
+
+    background: rgba(8, 6, 14, 0.92);
+}
+
+.media-viewer-media {
+    max-width: min(92vw, 1400px);
+    max-height: 92vh;
+
+    display: block;
+
+    object-fit: contain;
+
+    border-radius: 4px;
+
+    box-shadow: var(--shadow-lg);
+}
+
+.media-viewer-media[hidden] {
+    display: none;
+}
+
+.media-viewer-close {
+    position: absolute;
+
+    top: 16px;
+    right: 16px;
+
+    z-index: 2;
+
+    width: 40px;
+    height: 40px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: none;
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+}
+
+.media-viewer-close:hover {
+    background: rgba(255, 255, 255, 0.24);
+
+    transform: scale(1.05);
+}
+
+.media-viewer-download {
+    position: absolute;
+
+    right: 20px;
+    bottom: 20px;
+
+    z-index: 2;
+
+    width: 44px;
+    height: 44px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    border-radius: 50%;
+
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+}
+
+.media-viewer-download:hover {
+    background: rgba(255, 255, 255, 0.24);
+
+    transform: scale(1.05);
+}
+
+
+/* =========================
    Form
 ========================= */
 
@@ -3165,6 +3301,12 @@ button {
     font-weight: 500;
 
     text-align: center;
+}
+
+/* Пустой блок ошибки не показываем —
+   красная плашка появляется только при ошибке. */
+.form-error:empty {
+    display: none;
 }
 
 
