@@ -795,41 +795,6 @@ function addMessage(data) {
             "own"
         );
 
-    // Всплывающее меню "Реакция / Ответить" —
-    // только на чужих сообщениях, при наведении.
-    if (!isOwn) {
-
-        const hoverMenu =
-            createMessageHoverMenu(
-                data
-            );
-
-        content.appendChild(hoverMenu);
-
-        content.addEventListener(
-            "mouseenter",
-            function () {
-                hoverMenu.hidden = false;
-            }
-        );
-
-        content.addEventListener(
-            "mouseleave",
-            function () {
-                hoverMenu.hidden = true;
-
-                const picker =
-                    hoverMenu.querySelector(
-                        ".emoji-picker"
-                    );
-
-                if (picker) {
-                    picker.hidden = true;
-                }
-            }
-        );
-    }
-
 
     // Реакции — в теле сообщения, в нижнем левом углу пузыря.
     const reactionsBar =
@@ -1450,52 +1415,6 @@ function createReactionsBar(data, currentUser, isOwn) {
 
 
     return bar;
-}
-
-
-function createMessageHoverMenu(data) {
-
-    const messageId = data.id;
-
-    const menu =
-        document.createElement("div");
-
-    menu.classList.add(
-        "message-hover-menu"
-    );
-
-    menu.hidden = true;
-
-    // Меню при наведении — только кнопки реакций.
-    EMOJI_SET.forEach(function (emoji) {
-
-        const button =
-            document.createElement("button");
-
-        button.type = "button";
-
-        button.className =
-            "emoji-option";
-
-        button.textContent = emoji;
-
-        button.title = emoji;
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                sendReaction(
-                    messageId,
-                    emoji
-                );
-            }
-        );
-
-        menu.appendChild(button);
-    });
-
-    return menu;
 }
 
 
@@ -2739,6 +2658,8 @@ const chatSelectionCancel =
 let contextMenu = null;
 let contextMenuTarget = null;
 let contextMenuData = null;
+let contextMenuClientX = 0;
+let contextMenuClientY = 0;
 
 let selectionMode = false;
 let selectedMessageIds = new Set();
@@ -2758,6 +2679,18 @@ const contextMenuItems = [
             );
         },
         handler: replyToMessage,
+    },
+    {
+        id: "reaction",
+        icon: "😀",
+        label: "Реакция",
+        title: "Поставить реакцию",
+        show: function (data) {
+            return (
+                data.username !== chatConfig.username
+            );
+        },
+        handler: openReactionPicker,
     },
     {
         id: "message",
@@ -2959,9 +2892,29 @@ function openContextMenu(event, messageElement) {
     contextMenuTarget = messageElement;
     contextMenuData = data;
 
+    contextMenuClientX =
+        event.clientX;
+
+    contextMenuClientY =
+        event.clientY;
+
     buildContextMenu();
 
+    showContextMenu(
+        contextMenuClientX,
+        contextMenuClientY
+    );
+}
+
+
+// Показываем меню без отрисовки, чтобы замерить реальные размеры
+// (в состоянии display:none offsetWidth/offsetHeight равны 0),
+// и ограничиваем его границами области чата.
+function showContextMenu(clientX, clientY) {
+
     if (
+        !contextMenu
+        ||
         !contextMenu.querySelector(
             ".context-menu-btn"
         )
@@ -2969,8 +2922,6 @@ function openContextMenu(event, messageElement) {
         return;
     }
 
-    // Показываем меню без отрисовки, чтобы замерить реальные размеры
-    // (в состоянии display:none offsetWidth/offsetHeight равны 0).
     contextMenu.style.visibility = "hidden";
     contextMenu.hidden = false;
 
@@ -2982,7 +2933,6 @@ function openContextMenu(event, messageElement) {
 
     const margin = 8;
 
-    // Ограничиваем меню границами области чата.
     let minLeft = margin;
     let minTop = margin;
     let maxRight = window.innerWidth - margin;
@@ -3004,8 +2954,8 @@ function openContextMenu(event, messageElement) {
         }
     }
 
-    let left = event.clientX;
-    let top = event.clientY;
+    let left = clientX;
+    let top = clientY;
 
     if (left + menuWidth > maxRight) {
         left = maxRight - menuWidth;
@@ -3031,6 +2981,111 @@ function openContextMenu(event, messageElement) {
 
     contextMenu.style.visibility = "";
     contextMenu.hidden = false;
+}
+
+
+// Подменю выбора реакции внутри контекстного меню.
+function openReactionPicker(event) {
+
+    // Меню пересобирается (innerHTML="") прямо во время клика:
+    // кнопка, по которой кликнули, отсоединяется от DOM, и
+    // closest(".message-context-menu") её больше не находит.
+    // Поэтому гасим событие — глобальный «клик вне меню»
+    // не должен закрыть только что открытое подменю.
+    event?.stopPropagation();
+
+    if (
+        !contextMenu
+        ||
+        !contextMenuData
+    ) {
+        return;
+    }
+
+    const messageId =
+        contextMenuData.id;
+
+    if (messageId == null) {
+        return;
+    }
+
+    contextMenu.innerHTML = "";
+
+    const backButton =
+        document.createElement("button");
+
+    backButton.type = "button";
+
+    backButton.className =
+        "context-menu-btn context-menu-back";
+
+    backButton.textContent =
+        "← Назад";
+
+    backButton.addEventListener(
+        "click",
+        function (event) {
+
+            event.stopPropagation();
+
+            buildContextMenu();
+
+            showContextMenu(
+                contextMenuClientX,
+                contextMenuClientY
+            );
+        }
+    );
+
+    contextMenu.appendChild(backButton);
+
+
+    const grid =
+        document.createElement("div");
+
+    grid.className =
+        "reaction-picker-grid";
+
+    EMOJI_SET.forEach(
+        function (emoji) {
+
+            const button =
+                document.createElement("button");
+
+            button.type = "button";
+
+            button.className =
+                "reaction-picker-emoji";
+
+            button.textContent = emoji;
+
+            button.title = emoji;
+
+            button.addEventListener(
+                "click",
+                function (event) {
+
+                    event.stopPropagation();
+
+                    sendReaction(
+                        messageId,
+                        emoji
+                    );
+
+                    closeContextMenu();
+                }
+            );
+
+            grid.appendChild(button);
+        }
+    );
+
+    contextMenu.appendChild(grid);
+
+    showContextMenu(
+        contextMenuClientX,
+        contextMenuClientY
+    );
 }
 
 
@@ -3089,7 +3144,20 @@ if (chatLog) {
 
 document.addEventListener(
     "click",
-    closeContextMenu
+    function (event) {
+
+        // Клики внутри контекстного меню (в т.ч. клик
+        // по «Реакции» и по подменю смайликов) меню не закрывают.
+        if (
+            event.target.closest(
+                ".message-context-menu"
+            )
+        ) {
+            return;
+        }
+
+        closeContextMenu();
+    }
 );
 
 

@@ -4083,6 +4083,52 @@ button {
     flex-shrink: 0;
 }
 
+/* Подменю выбора реакции в контекстном меню. */
+.context-menu-back {
+    color: var(--text-muted);
+}
+
+.reaction-picker-grid {
+    display: grid;
+
+    grid-template-columns: repeat(4, 1fr);
+
+    gap: 4px;
+
+    padding: 4px 6px 6px;
+}
+
+.reaction-picker-emoji {
+    width: 44px;
+    height: 44px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 0;
+
+    border: none;
+    border-radius: 8px;
+
+    background: transparent;
+
+    font-size: 24px;
+    line-height: 1;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        transform 0.15s ease;
+}
+
+.reaction-picker-emoji:hover {
+    background: var(--primary-light);
+
+    transform: scale(1.12);
+}
+
 
 /* =========================
    Selection mode
