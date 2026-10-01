@@ -5,6 +5,7 @@
 """
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.auth import views as auth_views
 from django.urls import reverse_lazy
 
@@ -15,6 +16,10 @@ from .throttling import (
     is_rate_limited,
     password_reset_key,
 )
+
+# Вводить можно только свой email: если такого аккаунта нет,
+# показываем ошибку в поле, а не «обезличенный» ответ.
+EMAIL_NOT_FOUND_MESSAGE = "Этот email не привязан к аккаунту."
 
 
 def _hours_left():
@@ -39,39 +44,48 @@ class PasswordResetView(auth_views.PasswordResetView):
         "hours_left": _hours_left(),
     }
 
-    def dispatch(self, request, *args, **kwargs):
-        # Лимит на отправку писем: считаем только отправку формы,
-        # чтобы страницу можно было открывать сколько угодно раз.
-        if (
-            request.method == "POST"
-            and is_rate_limited(
-                password_reset_key(request),
-                limit=PASSWORD_RESET_LIMIT,
-                period=PASSWORD_RESET_PERIOD,
+    def email_is_known(self, email):
+        """Email принадлежит активному аккаунту?"""
+
+        return (
+            get_user_model()
+            .objects
+            .filter(
+                email__iexact=email,
+                is_active=True,
             )
+            .exists()
+        )
+
+    def form_valid(self, form):
+        if not self.email_is_known(form.cleaned_data["email"]):
+            form.add_error(
+                "email",
+                EMAIL_NOT_FOUND_MESSAGE,
+            )
+
+            return self.form_invalid(form)
+
+        # Лимит на отправку писем: считаем только реальные отправки,
+        # чтобы опечатки в email не тратили попытки.
+        if is_rate_limited(
+            password_reset_key(self.request),
+            limit=PASSWORD_RESET_LIMIT,
+            period=PASSWORD_RESET_PERIOD,
         ):
+            form.add_error(
+                None,
+                PASSWORD_RESET_LIMIT_MESSAGE,
+            )
+
             return self.render_to_response(
                 self.get_context_data(
-                    form=self.get_form_with_limit_error(),
+                    form=form,
                 ),
                 status=429,
             )
 
-        return super().dispatch(
-            request,
-            *args,
-            **kwargs,
-        )
-
-    def get_form_with_limit_error(self):
-        form = self.get_form()
-
-        form.add_error(
-            None,
-            PASSWORD_RESET_LIMIT_MESSAGE,
-        )
-
-        return form
+        return super().form_valid(form)
 
 
 class PasswordResetDoneView(auth_views.PasswordResetDoneView):

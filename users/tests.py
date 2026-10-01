@@ -5,6 +5,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .forms import RegistrationForm
+from .password_reset import EMAIL_NOT_FOUND_MESSAGE
 
 User = get_user_model()
 
@@ -248,17 +249,60 @@ class PasswordResetTests(TestCase):
             )
         )
 
-    def test_unknown_email_gives_generic_answer(self):
+    def test_unknown_email_rejected(self):
         response = self.client.post(
             reverse("password_reset"),
             {"email": "nobody@example.com"},
         )
 
-        self.assertRedirects(
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
             response,
-            reverse("password_reset_done"),
+            EMAIL_NOT_FOUND_MESSAGE,
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_unknown_email_does_not_spend_attempts(self):
+        for _ in range(10):
+            response = self.client.post(
+                reverse("password_reset"),
+                {"email": "nobody@example.com"},
+            )
+
+            self.assertEqual(response.status_code, 200)
+
+        # Настоящий email всё ещё можно отправить после серии опечаток.
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": "ivan@example.com"},
         )
 
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_email_case_insensitive(self):
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": "Ivan@Example.com"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(mail.outbox), 1)
+
+    def test_inactive_user_email_rejected(self):
+        self.user.is_active = False
+        self.user.save()
+
+        response = self.client.post(
+            reverse("password_reset"),
+            {"email": "ivan@example.com"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            EMAIL_NOT_FOUND_MESSAGE,
+        )
         self.assertEqual(len(mail.outbox), 0)
 
     def test_invalid_token_shows_hint(self):
@@ -289,3 +333,192 @@ class PasswordResetTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 429)
+
+
+class PasswordChangeTests(TestCase):
+    """Смена пароля из профиля."""
+
+    def setUp(self):
+        # Лимиты входа живут в кэше, который не сбрасывается между тестами.
+        cache.clear()
+
+        self.user = User.objects.create_user(
+            username="ivan",
+            email="ivan@example.com",
+            password=VALID_PASSWORD,
+        )
+
+    def test_anonymous_redirected_to_login(self):
+        response = self.client.get(
+            reverse("password_change")
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("first_chat"),
+            response.url,
+        )
+
+    def test_anonymous_redirected_from_profile(self):
+        response = self.client.get(
+            reverse("profile")
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(
+            reverse("first_chat"),
+            response.url,
+        )
+
+    def test_profile_has_change_password_button(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("profile")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            reverse("password_change"),
+        )
+        self.assertContains(
+            response,
+            "Изменить пароль",
+        )
+
+    def test_form_available_for_authenticated(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(
+            reverse("password_change")
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Текущий пароль",
+        )
+
+    def test_password_changed(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": VALID_PASSWORD,
+                "new_password1": NEW_PASSWORD,
+                "new_password2": NEW_PASSWORD,
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            reverse("password_change_done"),
+        )
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                NEW_PASSWORD
+            )
+        )
+        self.assertFalse(
+            self.user.check_password(
+                VALID_PASSWORD
+            )
+        )
+
+    def test_login_with_changed_password(self):
+        self.client.force_login(self.user)
+
+        self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": VALID_PASSWORD,
+                "new_password1": NEW_PASSWORD,
+                "new_password2": NEW_PASSWORD,
+            },
+        )
+
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("login"),
+            {
+                "username": "ivan",
+                "password": NEW_PASSWORD,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            response.json()["success"]
+        )
+
+    def test_wrong_old_password_rejected(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": "wrong-pass-999",
+                "new_password1": NEW_PASSWORD,
+                "new_password2": NEW_PASSWORD,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                VALID_PASSWORD
+            )
+        )
+
+    def test_weak_new_password_rejected(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": VALID_PASSWORD,
+                "new_password1": "123",
+                "new_password2": "123",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                VALID_PASSWORD
+            )
+        )
+
+    def test_mismatched_confirmation_rejected(self):
+        self.client.force_login(self.user)
+
+        response = self.client.post(
+            reverse("password_change"),
+            {
+                "old_password": VALID_PASSWORD,
+                "new_password1": NEW_PASSWORD,
+                "new_password2": "other-pass-789",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+
+        self.assertTrue(
+            self.user.check_password(
+                VALID_PASSWORD
+            )
+        )

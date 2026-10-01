@@ -1,6 +1,6 @@
 from django.urls import path
 
-from . import password_reset
+from . import password_change, password_reset
 from .views import login_view, logout_view, profile, register_view
 
 urlpatterns = [
@@ -29,5 +29,17 @@ urlpatterns = [
         "reset/done/",
         password_reset.PasswordResetCompleteView.as_view(),
         name="password_reset_complete",
+    ),
+
+    # Смена пароля в профиле.
+    path(
+        "profile/password/",
+        password_change.PasswordChangeView.as_view(),
+        name="password_change",
+    ),
+    path(
+        "profile/password/done/",
+        password_change.PasswordChangeDoneView.as_view(),
+        name="password_change_done",
     ),
 ]

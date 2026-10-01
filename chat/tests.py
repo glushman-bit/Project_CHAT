@@ -7,6 +7,7 @@ from channels.testing import WebsocketCommunicator
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TransactionTestCase
+from django.urls import reverse
 from PIL import Image
 
 from . import consumers as consumers_module
@@ -514,8 +515,10 @@ class SendMediaMessageViewTests(MediaUploadMixin, TransactionTestCase):
 
         self.assertEqual(response.status_code, 302)
 
+        # Отдельной страницы входа нет: редиректим в чат,
+        # где вход сделан модалкой (settings.LOGIN_URL).
         self.assertIn(
-            "/accounts/login/",
+            reverse("first_chat"),
             response.url,
         )
 
@@ -560,8 +563,10 @@ class RoomMediaViewTests(MediaUploadMixin, TransactionTestCase):
 
         self.assertEqual(response.status_code, 302)
 
+        # Отдельной страницы входа нет: редиректим в чат,
+        # где вход сделан модалкой (settings.LOGIN_URL).
         self.assertIn(
-            "/accounts/login/",
+            reverse("first_chat"),
             response.url,
         )
 

@@ -211,6 +211,10 @@ PASSWORD_RESET_TIMEOUT = int(
 
 AUTH_USER_MODEL = 'users.User'
 
+# Отдельной страницы входа в проекте нет: вход сделан модалкой
+# в чате, поэтому неавторизованных отправляем в чат.
+LOGIN_URL = 'first_chat'
+
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 

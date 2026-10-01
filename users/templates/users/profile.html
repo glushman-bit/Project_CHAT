@@ -25,6 +25,13 @@
             Вернуться в чат
         </a>
 
+        <a
+            class="password-change-button"
+            href="{% url 'password_change' %}"
+        >
+            Изменить пароль
+        </a>
+
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
 
