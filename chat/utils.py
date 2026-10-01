@@ -167,7 +167,7 @@ def _serialize_reply_to(message):
 def _serialize_reactions(message, current_user_id=None):
     """Агрегирует реакции сообщения по эмодзи.
 
-    Возвращает список вида [{"emoji", "count", "reacted_by_me"}].
+    Возвращает список вида [{"emoji", "count", "users", "reacted_by_me"}].
 
     count — реальное количество реакций с данным эмодзи в БД.
     Поле reacted_by_me добавляется только когда известен
@@ -179,6 +179,19 @@ def _serialize_reactions(message, current_user_id=None):
     if not hasattr(message, "_reaction_counts"):
         query = message.reactions.values("emoji").annotate(count=_Count("id"))
         message._reaction_counts = {item["emoji"]: item["count"] for item in query}
+
+    if not hasattr(message, "_reaction_users"):
+        users = {}
+        rows = message.reactions.values_list("emoji", "user__username")
+        for emoji, username in rows:
+            users.setdefault(emoji, []).append(username)
+        message._reaction_users = users
+
+    reaction_users = getattr(
+        message,
+        "_reaction_users",
+        {},
+    )
 
     has_current_user = current_user_id is not None
 
@@ -203,6 +216,7 @@ def _serialize_reactions(message, current_user_id=None):
         item = {
             "emoji": emoji,
             "count": count,
+            "users": list(reaction_users.get(emoji, [])),
         }
 
         if has_current_user:

@@ -443,16 +443,7 @@ function handleWebSocketMessage(event) {
             break;
 
 
-        case "user_status":
-
-            showSystemMessage(
-                data.username,
-                data.action
-            );
-
-            scrollToBottom(true);
-
-            break;
+        // Уведомления о входе/выходе в ленте не показываем.
 
 
         case "reaction":
@@ -1527,6 +1518,13 @@ function createReactionChip(
     chip.appendChild(count);
 
 
+    bindReactionChipTooltip(
+        chip,
+        reaction,
+        interactive
+    );
+
+
     if (interactive) {
 
         chip.addEventListener(
@@ -1545,6 +1543,208 @@ function createReactionChip(
 
 
     return chip;
+}
+
+
+// Единая всплывающая подсказка для чипов реакций.
+let reactionTooltipElement = null;
+
+
+function hideReactionTooltip() {
+
+    if (reactionTooltipElement) {
+        reactionTooltipElement.remove();
+        reactionTooltipElement = null;
+    }
+}
+
+
+function showReactionTooltip(chip, sticky) {
+
+    const text =
+        chip.dataset.tip;
+
+    if (!text) {
+        return;
+    }
+
+    hideReactionTooltip();
+
+    const tip =
+        document.createElement(
+            "div"
+        );
+
+    tip.className =
+        "reaction-tooltip";
+
+    tip.textContent =
+        text;
+
+    if (sticky) {
+        tip.classList.add("sticky");
+    }
+
+    document.body.appendChild(tip);
+
+    const rect =
+        chip.getBoundingClientRect();
+
+    const tipRect =
+        tip.getBoundingClientRect();
+
+    let left =
+        rect.left
+        + rect.width / 2
+        - tipRect.width / 2;
+
+    let top =
+        rect.top
+        - tipRect.height
+        - 8;
+
+    if (top < 8) {
+        top =
+            rect.bottom
+            + 8;
+    }
+
+    const maxLeft =
+        window.innerWidth
+        - tipRect.width
+        - 8;
+
+    if (left > maxLeft) {
+        left =
+            maxLeft;
+    }
+
+    if (left < 8) {
+        left = 8;
+    }
+
+    tip.style.left =
+        left + "px";
+
+    tip.style.top =
+        top + "px";
+
+    reactionTooltipElement =
+        tip;
+}
+
+
+// При наведении на чип реакции показываем,
+// кто именно её поставил.
+function bindReactionChipTooltip(
+    chip,
+    reaction,
+    interactive
+) {
+
+    const users =
+        Array.isArray(reaction.users)
+            ? reaction.users.filter(
+                  function (name) {
+                      return Boolean(name);
+                  }
+              )
+            : [];
+
+    if (!users.length) {
+        return;
+    }
+
+    const myName =
+        chatConfig.username;
+
+    const names =
+        users.slice().sort(
+            function (a, b) {
+
+                const aMine =
+                    a === myName
+                        ? 0
+                        : 1;
+
+                const bMine =
+                    b === myName
+                        ? 0
+                        : 1;
+
+                if (aMine !== bMine) {
+                    return aMine - bMine;
+                }
+
+                return a.localeCompare(b);
+            }
+        ).map(
+            function (name) {
+
+                return (
+                    name === myName
+                        ? name + " (вы)"
+                        : name
+                );
+            }
+        );
+
+    const text =
+        reaction.emoji
+        + " "
+        + names.join(", ");
+
+    chip.dataset.tip =
+        text;
+
+    if (interactive) {
+
+        chip.setAttribute(
+            "aria-label",
+            text
+        );
+    }
+
+    const hide = function () {
+
+        hideReactionTooltip();
+    };
+
+    chip.addEventListener(
+        "mouseenter",
+        function () {
+
+            showReactionTooltip(chip);
+        }
+    );
+
+    chip.addEventListener(
+        "mouseleave",
+        hide
+    );
+
+    chip.addEventListener(
+        "mousedown",
+        hide
+    );
+
+    // На тач-устройствах наведения нет: по нажатию
+    // показываем список тех же имён.
+    if (!interactive) {
+
+        chip.addEventListener(
+            "click",
+            function (event) {
+
+                event.stopPropagation();
+
+                showReactionTooltip(
+                    chip,
+                    true
+                );
+            }
+        );
+    }
 }
 
 
@@ -2102,44 +2302,6 @@ function createAvatar(
 
 
     return avatar;
-}
-
-
-function showSystemMessage(
-    username,
-    action
-) {
-
-    if (!chatLog) {
-        return;
-    }
-
-
-    const element =
-        document.createElement("div");
-
-    element.classList.add(
-        "system-message"
-    );
-
-
-    if (action === "join") {
-
-        element.textContent =
-            `🟢 ${username} вошёл в чат`;
-
-    } else if (action === "leave") {
-
-        element.textContent =
-            `🔴 ${username} вышел из чата`;
-
-    } else {
-
-        return;
-    }
-
-
-    chatLog.appendChild(element);
 }
 
 
