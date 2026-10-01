@@ -37,6 +37,13 @@ class Message(models.Model):
         blank=True,
         default="",
     )
+
+    # True для голосовых и видео сообщений, записанных прямо
+    # в чате (в отличие от загруженных аудио/видео файлов).
+    recorded = models.BooleanField(
+        default=False,
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     # Время последнего редактирования текста (null = сообщение не менялось).

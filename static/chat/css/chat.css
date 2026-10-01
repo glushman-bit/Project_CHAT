@@ -3334,6 +3334,8 @@ button {
 .media-tab {
     position: relative;
 
+    flex: 0 0 auto;
+
     display: inline-flex;
     align-items: center;
 
@@ -3514,6 +3516,81 @@ button {
 
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+/* Видео сообщения — кружком, как в ленте чата */
+
+.media-grid-recorded {
+    grid-template-columns:
+        repeat(auto-fill, minmax(110px, 1fr));
+}
+
+.media-grid-recorded
+    .media-grid-item {
+
+    aspect-ratio: 1 / 1;
+
+    border-radius: 50%;
+}
+
+.media-grid-recorded
+    .media-tile-overlay {
+
+    border-radius: 0 0 50% 50%;
+}
+
+/* Список для аудио и голосовых сообщений */
+
+.media-list-audio
+    .media-audio-row {
+
+    cursor: default;
+}
+
+.media-audio-play {
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 34px;
+    height: 34px;
+
+    padding: 0;
+
+    border: none;
+
+    border-radius: 50%;
+
+    background: var(--primary-light);
+    color: var(--primary);
+
+    font-family: inherit;
+    font-size: 12px;
+
+    cursor: pointer;
+
+    transition:
+        background 0.15s ease,
+        color 0.15s ease;
+}
+
+.media-audio-play:hover,
+.media-audio-play.playing {
+    background: var(--primary);
+    color: white;
+}
+
+.media-audio-player {
+    width: 0;
+    height: 0;
+
+    overflow: hidden;
+
+    opacity: 0;
+
+    pointer-events: none;
 }
 
 /* Список для документов и ссылок */

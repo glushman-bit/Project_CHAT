@@ -90,6 +90,13 @@ class MediaUploadMixin:
             content_type="video/mp4",
         )
 
+    def make_audio(self, name="track.mp3"):
+        return SimpleUploadedFile(
+            name,
+            b"fake mp3 bytes",
+            content_type="audio/mpeg",
+        )
+
     def make_file(self, name="notes.txt"):
         return SimpleUploadedFile(
             name,
@@ -615,6 +622,89 @@ class RoomMediaViewTests(MediaUploadMixin, TransactionTestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_recorded_media_split_from_uploaded(self):
+        self.upload(
+            self.member,
+            file=self.make_video("clip.mp4"),
+            caption="Загруженный клип",
+        )
+        self.upload(
+            self.member,
+            file=self.make_video(
+                "video_message_1700000000.webm"
+            ),
+            caption="Видео сообщение",
+            recorded="1",
+        )
+        self.upload(
+            self.member,
+            file=self.make_audio("track.mp3"),
+            caption="Загруженный трек",
+        )
+        self.upload(
+            self.member,
+            file=self.make_audio(
+                "voice_message_1700000001.weba"
+            ),
+            caption="Голосовое",
+            recorded="1",
+        )
+
+        data = self.get_media(self.member).json()
+
+        self.assertEqual(
+            [
+                item["attachment_name"]
+                for item in data["videos"]
+            ],
+            ["clip.mp4"],
+        )
+
+        self.assertEqual(
+            [
+                item["attachment_name"]
+                for item in data["video_messages"]
+            ],
+            ["video_message_1700000000.webm"],
+        )
+
+        self.assertEqual(
+            [
+                item["attachment_name"]
+                for item in data["audios"]
+            ],
+            ["track.mp3"],
+        )
+
+        self.assertEqual(
+            [
+                item["attachment_name"]
+                for item in data["voice_messages"]
+            ],
+            ["voice_message_1700000001.weba"],
+        )
+
+        self.assertTrue(
+            data["voice_messages"][0]["recorded"]
+        )
+
+        self.assertFalse(data["videos"][0]["recorded"])
+
+    def test_upload_without_recorded_flag_stays_unmarked(self):
+        self.upload(
+            self.member,
+            file=self.make_audio(),
+        )
+
+        message = Message.objects.get(room=self.room)
+
+        self.assertFalse(message.recorded)
+
+        data = self.get_media(self.member).json()
+
+        self.assertEqual(len(data["audios"]), 1)
+        self.assertEqual(len(data["voice_messages"]), 0)
+
     def test_empty_room_returns_empty_categories(self):
         response = self.get_media(self.member)
 
@@ -624,6 +714,9 @@ class RoomMediaViewTests(MediaUploadMixin, TransactionTestCase):
 
         self.assertEqual(data["photos"], [])
         self.assertEqual(data["videos"], [])
+        self.assertEqual(data["video_messages"], [])
+        self.assertEqual(data["audios"], [])
+        self.assertEqual(data["voice_messages"], [])
         self.assertEqual(data["documents"], [])
         self.assertEqual(data["links"], [])
 

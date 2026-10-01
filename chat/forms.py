@@ -148,6 +148,10 @@ class SendMediaMessageForm(forms.Form):
         min_value=1,
         label="Сообщение, на которое дан ответ",
     )
+    recorded = forms.BooleanField(
+        required=False,
+        label="Записано в чате (голосовое или видео сообщение)",
+    )
 
     def clean_file(self):
         file = self.cleaned_data.get("file")

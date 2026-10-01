@@ -4954,7 +4954,9 @@ function sendRecordedMedia(blob) {
 
     uploadMediaFile(
         file,
-        ""
+        "",
+        "",
+        true
     )
         .then(
             function (ok) {
@@ -5826,7 +5828,8 @@ async function sendSelectedMedia() {
 async function uploadMediaFile(
     file,
     caption,
-    replyToId
+    replyToId,
+    recorded
 ) {
 
     const formData =
@@ -5841,6 +5844,14 @@ async function uploadMediaFile(
         formData.append(
             "reply_to_id",
             replyToId
+        );
+    }
+
+    if (recorded) {
+
+        formData.append(
+            "recorded",
+            "1"
         );
     }
 
@@ -7297,6 +7308,8 @@ function renderMediaTab(tab) {
         tab === "photos"
         ||
         tab === "videos"
+        ||
+        tab === "video_messages"
     ) {
 
         const grid =
@@ -7304,6 +7317,13 @@ function renderMediaTab(tab) {
 
         grid.className =
             "media-grid";
+
+        if (tab === "video_messages") {
+
+            grid.classList.add(
+                "media-grid-recorded"
+            );
+        }
 
         items.forEach(
             function (item) {
@@ -7328,6 +7348,17 @@ function renderMediaTab(tab) {
 
         list.className =
             "media-list";
+
+        if (
+            tab === "audios"
+            ||
+            tab === "voice_messages"
+        ) {
+
+            list.classList.add(
+                "media-list-audio"
+            );
+        }
 
         items.forEach(
             function (item) {
@@ -7359,17 +7390,34 @@ function createMediaTile(item, kind) {
     link.href =
         item.attachment;
 
-    link.target = "_blank";
-
-    link.rel = "noopener";
-
     link.title =
         item.attachment_name
         ||
         item.username;
 
+    const isVideo =
+        kind === "videos"
+        ||
+        kind === "video_messages";
 
-    if (kind === "videos") {
+    link.addEventListener(
+        "click",
+        function (event) {
+
+            event.preventDefault();
+
+            openMediaViewer(
+                item.attachment,
+                isVideo
+                    ? "video"
+                    : "image",
+                item.attachment_name
+            );
+        }
+    );
+
+
+    if (isVideo) {
 
         const video =
             document.createElement("video");
@@ -7468,6 +7516,19 @@ function createMediaTile(item, kind) {
 
 function createMediaRow(item, kind) {
 
+    if (
+        kind === "audios"
+        ||
+        kind === "voice_messages"
+    ) {
+
+        return createAudioMediaRow(
+            item,
+            kind
+        );
+    }
+
+
     const link =
         document.createElement("a");
 
@@ -7551,8 +7612,149 @@ function createMediaRow(item, kind) {
 }
 
 
-function formatMediaDate(iso) {
+function createAudioMediaRow(item, kind) {
 
+    const row =
+        document.createElement("div");
+
+    row.className =
+        "media-list-item media-audio-row";
+
+
+    const play =
+        document.createElement("button");
+
+    play.type = "button";
+
+    play.className =
+        "media-audio-play";
+
+    play.title =
+        "Слушать";
+
+    play.setAttribute(
+        "aria-label",
+        "Прослушать запись"
+    );
+
+    play.textContent = "▶";
+
+
+    const audio =
+        document.createElement("audio");
+
+    audio.className =
+        "media-audio-player";
+
+    audio.preload = "none";
+
+    audio.src =
+        item.attachment;
+
+    audio.addEventListener(
+        "ended",
+        function () {
+
+            play.textContent = "▶";
+
+            play.classList.remove(
+                "playing"
+            );
+        }
+    );
+
+    play.addEventListener(
+        "click",
+        function () {
+
+            if (audio.paused) {
+
+                audio.play().catch(
+                    function () {}
+                );
+
+                play.textContent = "❚❚";
+
+                play.classList.add(
+                    "playing"
+                );
+
+            } else {
+
+                audio.pause();
+
+                play.textContent = "▶";
+
+                play.classList.remove(
+                    "playing"
+                );
+            }
+        }
+    );
+
+    row.appendChild(
+        play
+    );
+
+    row.appendChild(
+        audio
+    );
+
+
+    const body =
+        document.createElement("span");
+
+    body.className =
+        "media-list-body";
+
+    const name =
+        document.createElement("span");
+
+    name.className =
+        "media-list-name";
+
+    name.textContent =
+        kind === "voice_messages"
+            ? (
+                item.username
+                + " • голосовое"
+            )
+            : (
+                item.attachment_name
+                || "Аудио"
+            );
+
+    body.appendChild(
+        name
+    );
+
+    const meta =
+        document.createElement("span");
+
+    meta.className =
+        "media-list-meta";
+
+    meta.textContent =
+        formatMediaDate(
+            item.created_at
+        );
+
+    if (meta.textContent) {
+
+        body.appendChild(
+            meta
+        );
+    }
+
+    row.appendChild(
+        body
+    );
+
+    return row;
+}
+
+
+function formatMediaDate(iso) {
     const date =
         new Date(iso);
 

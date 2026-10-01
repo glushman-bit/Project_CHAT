@@ -71,6 +71,7 @@ def _serialize_media_item(message):
         "attachment": (message.attachment.url if message.attachment else None),
         "attachment_type": message.attachment_type,
         "attachment_name": message.attachment_name,
+        "recorded": message.recorded,
     }
 
 
@@ -565,6 +566,7 @@ class SendMediaMessageView(LoginRequiredMixin, View):
         file = form.cleaned_data["file"]
         caption = form.cleaned_data["caption"]
         reply_to_id = form.cleaned_data.get("reply_to_id")
+        recorded = bool(form.cleaned_data.get("recorded"))
 
         reply_to = None
 
@@ -602,6 +604,7 @@ class SendMediaMessageView(LoginRequiredMixin, View):
                 file.content_type,
             ),
             attachment_name=file.name,
+            recorded=recorded,
             reply_to=reply_to,
         )
 
@@ -652,7 +655,12 @@ class SendMediaMessageView(LoginRequiredMixin, View):
 
 
 class RoomMediaView(LoginRequiredMixin, View):
-    """Список медиа комнаты по группам: фото, видео, документы, ссылки."""
+    """Список медиа комнаты по группам.
+
+    Фото, загруженные видео, записанные видео сообщения,
+    загруженные аудиофайлы, записанные голосовые,
+    документы и ссылки.
+    """
 
     def get(self, request, room_id):
         room = get_object_or_404(
@@ -669,6 +677,9 @@ class RoomMediaView(LoginRequiredMixin, View):
 
         photos = []
         videos = []
+        video_messages = []
+        audios = []
+        voice_messages = []
         documents = []
         links = []
 
@@ -679,7 +690,15 @@ class RoomMediaView(LoginRequiredMixin, View):
                 if message.attachment_type == "image":
                     photos.append(item)
                 elif message.attachment_type == "video":
-                    videos.append(item)
+                    if message.recorded:
+                        video_messages.append(item)
+                    else:
+                        videos.append(item)
+                elif message.attachment_type == "audio":
+                    if message.recorded:
+                        voice_messages.append(item)
+                    else:
+                        audios.append(item)
                 else:
                     documents.append(item)
 
@@ -696,6 +715,9 @@ class RoomMediaView(LoginRequiredMixin, View):
             {
                 "photos": photos,
                 "videos": videos,
+                "video_messages": video_messages,
+                "audios": audios,
+                "voice_messages": voice_messages,
                 "documents": documents,
                 "links": links,
             }

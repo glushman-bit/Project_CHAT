@@ -119,6 +119,7 @@ def serialize_message(message, current_user_id=None):
         "attachment": (message.attachment.url if message.attachment else None),
         "attachment_type": message.attachment_type,
         "attachment_name": message.attachment_name,
+        "recorded": message.recorded,
         "reactions": _serialize_reactions(
             message,
             current_user_id,
